@@ -3,6 +3,7 @@ import logging
 import os
 import json
 import google.generativeai as genai
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -16,17 +17,33 @@ else:
     logger.warning("GEMINI_API_KEY not found, using fallback report generation")
     model = None
 
+# In-memory cache for generated reports (IP -> (report, timestamp))
+_report_cache = {}
+
 
 def generate_threat_report(
     ip: str,
     correlated: Dict[str, Any],
     risk: Dict[str, Any]
 ) -> str:
-    """Generate AI-powered threat intelligence report using Gemini"""
+    """Generate AI-powered threat intelligence report using Gemini with caching"""
+    
+    # Check if we have a cached report for this IP (cache for 24 hours)
+    if ip in _report_cache:
+        cached_report, cached_time = _report_cache[ip]
+        time_diff = datetime.now(timezone.utc) - cached_time
+        if time_diff.total_seconds() < 86400:  # 24 hours
+            logger.info(f"Returning cached AI report for IP: {ip}")
+            return cached_report
+        else:
+            # Remove expired cache entry
+            del _report_cache[ip]
     
     # If Gemini is not configured, use fallback template
     if not model:
-        return generate_fallback_report(ip, correlated, risk)
+        report = generate_fallback_report(ip, correlated, risk)
+        _report_cache[ip] = (report, datetime.now(timezone.utc))
+        return report
     
     try:
         # Prepare data for AI analysis
@@ -86,12 +103,16 @@ Generate a professional threat intelligence report in Markdown format with the f
 7. **Recommended Actions** - Specific actionable recommendations based on threat level
 
 Use professional cybersecurity terminology. Be concise but thorough. Use emoji indicators (🔴 for high risk, 🟡 for medium, 🟢 for low).
-Format the response in clean Markdown with proper headers, bullet points, and emphasis.
-"""
+Format the response in clean Markdown with proper headers (##, ###), bullet points (•), and emphasis (**bold** for important terms).
+Avoid using asterisks for bullet points. Use proper Markdown headers only (## and ###).
+Keep text clean and professional without excessive special characters."""
 
         # Generate AI report
         response = model.generate_content(prompt)
         ai_report = response.text
+        
+        # Cache the report
+        _report_cache[ip] = (ai_report, datetime.now(timezone.utc))
         
         logger.info(f"AI report generated successfully for IP: {ip}")
         return ai_report
@@ -99,7 +120,10 @@ Format the response in clean Markdown with proper headers, bullet points, and em
     except Exception as e:
         logger.error(f"Error generating AI report: {str(e)}")
         # Fallback to template if AI fails
-        return generate_fallback_report(ip, correlated, risk)
+        report = generate_fallback_report(ip, correlated, risk)
+        # Cache the fallback report too
+        _report_cache[ip] = (report, datetime.now(timezone.utc))
+        return report
 
 
 def generate_fallback_report(
@@ -120,14 +144,14 @@ def generate_fallback_report(
     report_lines.append("")
     
     if risk["score"] >= 60:
-        report_lines.append(f"🔴 **MALICIOUS**: This IP address ({ip}) exhibits suspicious behavior with a risk score of {risk['score']}/100.")
+        report_lines.append(f"🔴 **MALICIOUS** - This IP address ({ip}) exhibits suspicious behavior with a risk score of {risk['score']}/100.")
     elif risk["score"] >= 40:
-        report_lines.append(f"🟡 **SUSPICIOUS**: This IP address ({ip}) shows concerning patterns with a risk score of {risk['score']}/100.")
+        report_lines.append(f"🟡 **SUSPICIOUS** - This IP address ({ip}) shows concerning patterns with a risk score of {risk['score']}/100.")
     else:
-        report_lines.append(f"🟢 **BENIGN**: This IP address ({ip}) appears relatively safe with a risk score of {risk['score']}/100.")
+        report_lines.append(f"🟢 **BENIGN** - This IP address ({ip}) appears relatively safe with a risk score of {risk['score']}/100.")
     
     report_lines.append("")
-    report_lines.append("### Threat Classification")
+    report_lines.append("## Threat Classification")
     if categories:
         for cat in categories:
             report_lines.append(f"• {cat}")
@@ -135,7 +159,7 @@ def generate_fallback_report(
         report_lines.append("• No significant threats identified")
     
     report_lines.append("")
-    report_lines.append("### Attribution & Context")
+    report_lines.append("## Attribution & Context")
     report_lines.append(f"• **Location**: {context.get('city', 'Unknown')}, {context.get('country', 'Unknown')}")
     report_lines.append(f"• **Organization**: {context.get('org', 'Unknown')}")
     report_lines.append(f"• **ASN**: {context.get('asn', 'Unknown')}")
@@ -143,22 +167,36 @@ def generate_fallback_report(
         report_lines.append(f"• **Hostname**: {context.get('hostname')}")
     
     report_lines.append("")
-    report_lines.append("### Technical Indicators")
+    report_lines.append("## Technical Analysis")
     
     abuse = evidence.get("abuseipdb", {})
     if abuse.get("total_reports", 0) > 0:
-        report_lines.append(f"• **Abuse Reports**: {abuse.get('total_reports')} reports ({abuse.get('confidence_score')}% confidence)")
+        report_lines.append(f"### AbuseIPDB")
+        report_lines.append(f"• Total Reports: {abuse.get('total_reports')}")
+        report_lines.append(f"• Confidence Score: {abuse.get('confidence_score')}%")
     
     vt = evidence.get("virustotal", {})
-    if vt.get("malicious", 0) > 0:
-        report_lines.append(f"• **VirusTotal Detections**: {vt.get('malicious')} malicious, {vt.get('suspicious', 0)} suspicious")
+    if vt.get("malicious", 0) > 0 or vt.get("tags", []):
+        report_lines.append(f"### VirusTotal")
+        if vt.get("malicious", 0) > 0:
+            report_lines.append(f"• Malicious Detections: {vt.get('malicious')}")
+            report_lines.append(f"• Suspicious Detections: {vt.get('suspicious', 0)}")
+        if vt.get("tags"):
+            report_lines.append(f"• Threat Tags: {', '.join(vt.get('tags', []))}")
     
     cves = related.get("cves", [])
     if cves:
-        report_lines.append(f"• **CVEs**: {', '.join(cves)}")
+        report_lines.append("")
+        report_lines.append("## Indicators of Compromise")
+        report_lines.append(f"• Known CVEs: {', '.join(cves)}")
     
     report_lines.append("")
-    report_lines.append("### Recommended Actions")
+    report_lines.append("## Risk Assessment")
+    report_lines.append(f"• Risk Score: {risk['score']}/100")
+    report_lines.append(f"• Rationale: {risk.get('rationale', 'Analysis completed')}")
+    
+    report_lines.append("")
+    report_lines.append("## Recommended Actions")
     if risk["score"] >= 60:
         report_lines.append("🚨 **BLOCK** this IP immediately in firewall rules")
         report_lines.append("• Review logs for any connections from this IP")
@@ -169,11 +207,11 @@ def generate_fallback_report(
         report_lines.append("• Review connection logs and access patterns")
         report_lines.append("• Implement rate limiting if applicable")
     else:
-        report_lines.append("✅ No immediate action required")
-        report_lines.append("• Continue standard monitoring procedures")
+        report_lines.append("✅ **MONITOR** - Continue standard monitoring procedures")
+        report_lines.append("• No immediate blocking action required")
     
     report_lines.append("")
     report_lines.append("---")
-    report_lines.append("*Report generated by TICE (Template Mode). Configure Gemini API for AI-enhanced analysis.*")
+    report_lines.append("*Report generated by TICE - Threat Intelligence Correlation Engine*")
     
     return "\n".join(report_lines)

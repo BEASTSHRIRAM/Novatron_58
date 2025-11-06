@@ -1,13 +1,50 @@
 import React, { useState } from 'react';
-import { Brain, ChevronDown, ChevronUp, Download, FileText } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Download, FileText, Sparkles, Loader } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import jsPDF from 'jspdf';
+import axios from 'axios';
 
-const AiReportPanel = ({ report, threatData }) => {
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+const AiReportPanel = ({ threatData }) => {
   const [expanded, setExpanded] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [report, setReport] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [reportError, setReportError] = useState(null);
+
+  const handleGenerateReport = async () => {
+    setGenerating(true);
+    setReportError(null);
+    
+    try {
+      const response = await axios.post(`${API}/generate-report`, {
+        ip: threatData.ip,
+        correlated: {
+          context: threatData.context,
+          categories: threatData.categories,
+          related: threatData.related,
+          evidence: threatData.evidence
+        },
+        risk: threatData.risk
+      });
+      
+      setReport(response.data.report);
+    } catch (err) {
+      console.error('Error generating report:', err);
+      const errorMessage = err.response?.data?.detail || 'Failed to generate AI report';
+      setReportError(errorMessage);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleExportMarkdown = () => {
+    if (!report) {
+      alert('Please generate a report first');
+      return;
+    }
     const blob = new Blob([report], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -18,6 +55,10 @@ const AiReportPanel = ({ report, threatData }) => {
   };
 
   const handleExportPDF = async () => {
+    if (!report) {
+      alert('Please generate a report first');
+      return;
+    }
     setExporting(true);
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -235,7 +276,7 @@ const AiReportPanel = ({ report, threatData }) => {
       pdf.text('AI THREAT ANALYSIS', margin, yPosition);
       yPosition += 8;
 
-      // Parse and format the markdown report
+      // Parse and format the markdown report with cleaned formatting
       pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(0, 0, 0);
@@ -247,44 +288,65 @@ const AiReportPanel = ({ report, threatData }) => {
           return;
         }
         
+        let cleanedLine = line;
+        
         // Headers
         if (line.startsWith('##')) {
           checkPageBreak(10);
+          cleanedLine = line.replace(/^##\s*/, '').replace(/[*_]/g, '');
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(0, 150, 40);
-          addText(line.replace(/^##\s*/, ''), 11, [0, 150, 40], true);
+          pdf.setTextColor(0, 120, 215);
+          addText(cleanedLine, 11, [0, 120, 215], true);
           yPosition += 2;
         } else if (line.startsWith('###')) {
           checkPageBreak(8);
+          cleanedLine = line.replace(/^###\s*/, '').replace(/[*_]/g, '');
           pdf.setFontSize(10);
           pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(168, 85, 247);
-          addText(line.replace(/^###\s*/, ''), 10, [168, 85, 247], true);
+          addText(cleanedLine, 10, [168, 85, 247], true);
+          yPosition += 1;
+        } else if (line.startsWith('####')) {
+          checkPageBreak(7);
+          cleanedLine = line.replace(/^####\s*/, '').replace(/[*_]/g, '');
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(100, 100, 100);
+          addText(cleanedLine, 9, [100, 100, 100], true);
           yPosition += 1;
         } else if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
           checkPageBreak(6);
+          cleanedLine = line.replace(/^[•\-*]\s*/, '').replace(/\*\*/g, '').replace(/[*_]/g, '');
           pdf.setFontSize(9);
           pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(0, 0, 0);
-          addText(line, 9, [0, 0, 0], false);
+          addText('  • ' + cleanedLine, 9, [0, 0, 0], false);
         } else if (line.includes('**')) {
           checkPageBreak(6);
+          cleanedLine = line.replace(/\*\*/g, '');
           pdf.setFontSize(9);
           pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(0, 0, 0);
-          addText(line.replace(/\*\*/g, ''), 9, [0, 0, 0], true);
+          addText(cleanedLine, 9, [0, 0, 0], true);
         } else if (line.trim() === '---') {
           checkPageBreak(5);
           pdf.setDrawColor(180, 180, 180);
           pdf.line(margin, yPosition, pageWidth - margin, yPosition);
           yPosition += 5;
+        } else if (line.match(/^[🔴🟡🟢⚠️🚨✅]/)) {
+          checkPageBreak(6);
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(0, 0, 0);
+          addText(line, 9, [0, 0, 0], false);
         } else {
           checkPageBreak(6);
+          cleanedLine = line.replace(/[*_]/g, '');
           pdf.setFontSize(9);
           pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(0, 0, 0);
-          addText(line, 9, [0, 0, 0], false);
+          addText(cleanedLine, 9, [0, 0, 0], false);
         }
       });
 
@@ -313,9 +375,29 @@ const AiReportPanel = ({ report, threatData }) => {
         </h3>
         <div className="flex gap-2">
           <button
+            data-testid="generate-report-button"
+            onClick={handleGenerateReport}
+            disabled={generating}
+            className="px-4 py-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+          >
+            {generating ? (
+              <>
+                <Loader className="w-4 h-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Generate Report
+              </>
+            )}
+          </button>
+
+          <button
             data-testid="export-pdf-button"
             onClick={handleExportPDF}
-            disabled={exporting}
+            disabled={exporting || !report}
             className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ fontFamily: 'Space Grotesk, sans-serif' }}
           >
@@ -326,7 +408,8 @@ const AiReportPanel = ({ report, threatData }) => {
           <button
             data-testid="export-markdown-button"
             onClick={handleExportMarkdown}
-            className="px-4 py-2 rounded-lg bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-all flex items-center gap-2"
+            disabled={!report}
+            className="px-4 py-2 rounded-lg bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ fontFamily: 'Space Grotesk, sans-serif' }}
           >
             <Download className="w-4 h-4" />
@@ -343,7 +426,19 @@ const AiReportPanel = ({ report, threatData }) => {
         </div>
       </div>
 
-      {expanded && (
+      {reportError && (
+        <div className="mb-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
+          <p className="text-sm">{reportError}</p>
+        </div>
+      )}
+
+      {!report && !generating && (
+        <div className="mb-4 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400">
+          <p className="text-sm">Click "Generate Report" to analyze this IP with AI</p>
+        </div>
+      )}
+
+      {expanded && report && (
         <div className="prose prose-invert max-w-none overflow-x-auto">
           <div
             className="p-6 bg-black/30 rounded-lg text-gray-300 leading-relaxed overflow-x-auto"
@@ -357,13 +452,36 @@ const AiReportPanel = ({ report, threatData }) => {
           >
             <ReactMarkdown
               components={{
-                h2: ({ node, ...props }) => <h2 className="text-2xl font-bold text-green-400 mb-4 mt-6 break-words whitespace-pre-wrap" {...props} />,
-                h3: ({ node, ...props }) => <h3 className="text-xl font-semibold text-purple-400 mb-3 mt-4 break-words whitespace-pre-wrap" {...props} />,
-                ul: ({ node, ...props }) => <ul className="list-none space-y-2 my-4" {...props} />,
-                li: ({ node, ...props }) => <li className="text-gray-300 break-words whitespace-pre-wrap" {...props} />,
-                p: ({ node, ...props }) => <p className="mb-3 break-words whitespace-pre-wrap" {...props} />,
-                strong: ({ node, ...props }) => <strong className="text-white font-semibold break-words" {...props} />,
-                hr: ({ node, ...props }) => <hr className="border-gray-700 my-4" {...props} />
+                h1: ({ node, ...props }) => <h1 className="text-3xl font-bold text-cyan-400 mb-4 mt-6 break-words whitespace-pre-wrap" {...props} />,
+                h2: ({ node, ...props }) => (
+                  <div className="flex items-center gap-3 mb-4 mt-6">
+                    <div className="h-1 w-1 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full"></div>
+                    <h2 className="text-2xl font-bold text-cyan-400 break-words whitespace-pre-wrap" {...props} />
+                  </div>
+                ),
+                h3: ({ node, ...props }) => (
+                  <h3 className="text-xl font-bold text-purple-300 mb-3 mt-4 pl-4 border-l-4 border-purple-500 break-words whitespace-pre-wrap" {...props} />
+                ),
+                ul: ({ node, ...props }) => <ul className="list-none space-y-3 my-4 ml-4" {...props} />,
+                li: ({ node, ...props }) => (
+                  <li className="text-gray-200 flex items-start gap-3 break-words whitespace-pre-wrap">
+                    <span className="text-cyan-400 font-bold mt-0.5">▸</span>
+                    <span {...props} />
+                  </li>
+                ),
+                p: ({ node, ...props }) => <p className="mb-3 text-gray-300 break-words whitespace-pre-wrap leading-relaxed" {...props} />,
+                strong: ({ node, ...props }) => <strong className="text-white font-bold bg-gradient-to-r from-purple-500/10 to-cyan-500/10 px-2 py-1 rounded break-words" {...props} />,
+                em: ({ node, ...props }) => <em className="text-cyan-300 italic break-words" {...props} />,
+                hr: ({ node, ...props }) => <hr className="border-t border-purple-500/30 my-6" {...props} />,
+                code: ({ node, inline, ...props }) => 
+                  inline ? (
+                    <code className="bg-black/50 text-cyan-300 px-2 py-1 rounded text-sm font-mono break-words" {...props} />
+                  ) : (
+                    <code className="bg-black/50 text-cyan-300 p-4 rounded block my-4 font-mono text-sm overflow-x-auto break-words" {...props} />
+                  ),
+                blockquote: ({ node, ...props }) => (
+                  <blockquote className="border-l-4 border-cyan-500 bg-cyan-500/10 pl-4 py-2 my-4 text-cyan-200 italic break-words whitespace-pre-wrap" {...props} />
+                ),
               }}
             >
               {report}

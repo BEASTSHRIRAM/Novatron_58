@@ -214,7 +214,7 @@ const Dashboard = () => {
 
           {/* AI Report */}
           <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
-            <AiReportPanel report={threatData.ai_report} threatData={threatData} />
+            <AiReportPanel threatData={threatData} />
           </div>
 
           {/* Analysis History */}

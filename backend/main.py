@@ -245,6 +245,38 @@ async def dns_check(request: IPAnalysisRequest):
         logger.error(f"Error checking DNS for IP {request.ip}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"DNS check failed: {str(e)}")
 
+
+class GenerateReportRequest(BaseModel):
+    ip: str
+    correlated: Dict[str, Any]
+    risk: Dict[str, Any]
+
+
+@api_router.post("/generate-report")
+async def generate_report(request: GenerateReportRequest):
+    """Generate AI threat report using Gemini API"""
+    try:
+        ip = request.ip
+        logger.info(f"Generating AI report for IP: {ip}")
+        
+        # Generate the threat report using Gemini
+        ai_report = generate_threat_report(
+            ip=ip,
+            correlated=request.correlated,
+            risk=request.risk
+        )
+        
+        return {
+            "ip": ip,
+            "report": ai_report,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating report for IP {request.ip}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+
 app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
