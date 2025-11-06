@@ -1,0 +1,43 @@
+# Exclude everything
+*
+*/
+
+# But include these files
+!.gitignore
+!README.md
+
+# But include backend and frontend folders
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+
+# Exclude .env files
+backend/.env
+backend/**/.env
+frontend/.env
+frontend/**/.env
+
+# Exclude node_modules
+frontend/node_modules/
+frontend/node_modules/**
+
+# Python cache and virtual environment
+backend/__pycache__/
+backend/**/__pycache__/
+**/*.py[cod]
+*$py.class
+**/*.so
+backend/venv/
+backend/env/
+backend/ENV/
+
+# IDE
+**/.vscode/
+**/.idea/
+**/*.swp
+**/*.swo
+
+# OS
+**/.DS_Store
+**/Thumbs.db

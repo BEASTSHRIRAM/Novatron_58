@@ -1,10 +1,15 @@
-from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
+from pathlib import Path
+
+# Load environment variables FIRST, before any other imports
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+from fastapi import FastAPI, APIRouter, HTTPException
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
-from pathlib import Path
 from pydantic import BaseModel, validator
 from datetime import datetime, timezone
 import ipaddress
@@ -16,9 +21,6 @@ from core.report import generate_threat_report
 from sources.abuseipdb import get_abuseipdb_data
 from sources.shodan_api import get_shodan_data
 from sources.ipinfo_api import get_ipinfo_data
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -84,13 +86,11 @@ async def analyze_ip(request: IPAnalysisRequest):
             shodan=shodan_data,
             ipinfo=ipinfo_data
         )
-        
         ai_report = generate_threat_report(
             ip=ip,
             correlated=correlated,
             risk=risk
         )
-        
         response = {
             "ip": ip,
             "risk": risk,
@@ -101,23 +101,17 @@ async def analyze_ip(request: IPAnalysisRequest):
             "ai_report": ai_report,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        
         await db.analyses.insert_one({
             **response,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
-        
         return response
-        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error analyzing IP {request.ip}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-
 app.include_router(api_router)
-
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -125,8 +119,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
