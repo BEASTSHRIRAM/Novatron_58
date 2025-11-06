@@ -70,6 +70,27 @@ async def analyze_ip(request: IPAnalysisRequest):
         ip = request.ip
         logger.info(f"Analyzing IP: {ip}")
         
+        # Check if we have recent analysis (within last 24 hours)
+        cached_analysis = await db.analyses.find_one(
+            {"ip": ip},
+            sort=[("timestamp", -1)]
+        )
+        
+        if cached_analysis:
+            # Parse timestamp
+            from dateutil import parser
+            cached_time = parser.isoparse(cached_analysis["timestamp"])
+            time_diff = datetime.now(timezone.utc) - cached_time
+            
+            # If analysis is less than 24 hours old, return cached result
+            if time_diff.total_seconds() < 86400:  # 24 hours in seconds
+                logger.info(f"Returning cached analysis for IP: {ip} (age: {time_diff.total_seconds()/3600:.1f} hours)")
+                # Remove MongoDB _id field
+                cached_analysis.pop("_id", None)
+                return cached_analysis
+        
+        logger.info(f"Fetching fresh data for IP: {ip}")
+        
         abuseipdb_data = await get_abuseipdb_data(ip)
         virustotal_data = await get_virustotal_data(ip)
         ipinfo_data = await get_ipinfo_data(ip)
@@ -86,11 +107,13 @@ async def analyze_ip(request: IPAnalysisRequest):
             virustotal=virustotal_data,
             ipinfo=ipinfo_data
         )
+        
         ai_report = generate_threat_report(
             ip=ip,
             correlated=correlated,
             risk=risk
         )
+        
         response = {
             "ip": ip,
             "risk": risk,
@@ -101,11 +124,14 @@ async def analyze_ip(request: IPAnalysisRequest):
             "ai_report": ai_report,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+        
         await db.analyses.insert_one({
             **response,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+        
         return response
+        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

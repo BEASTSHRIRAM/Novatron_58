@@ -30,12 +30,12 @@ const EvidenceTabs = ({ evidence }) => {
             VirusTotal
           </TabsTrigger>
           <TabsTrigger
-            data-testid="tab-ipinfo"
+            data-testid="tab-ipdata"
             value="ipinfo"
             className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 text-gray-400 rounded-md transition-all"
           >
             <MapPin className="w-4 h-4 mr-2" />
-            IPInfo
+            IPData.co
           </TabsTrigger>
         </TabsList>
 

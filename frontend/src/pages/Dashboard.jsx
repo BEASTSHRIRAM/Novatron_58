@@ -115,6 +115,18 @@ const Dashboard = () => {
               <p className="text-red-400">{error}</p>
             </div>
           )}
+          
+          {threatData && (
+            <div className="mt-4 p-3 rounded-xl bg-green-900/10 border border-green-500/20 flex items-center gap-3">
+              <Shield className="w-4 h-4 text-green-400" />
+              <p className="text-green-400 text-sm">
+                Analysis from {new Date(threatData.timestamp).toLocaleString()} 
+                <span className="text-gray-500 ml-2">
+                  (cached for 24 hours)
+                </span>
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
