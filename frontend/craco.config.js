@@ -8,16 +8,23 @@ const webpackConfig = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
-      // Add ignored patterns to reduce watched directories
+      // Ignore Mediapipe source-map warnings
+      webpackConfig.ignoreWarnings = [
+        {
+          module: /@mediapipe\/tasks-vision/,
+        },
+      ];
+
+      // Reduce directories watched for faster rebuild
       webpackConfig.watchOptions = {
         ...webpackConfig.watchOptions,
         ignored: [
-          '**/node_modules/**',
-          '**/.git/**',
-          '**/build/**',
-          '**/dist/**',
-          '**/coverage/**',
-          '**/public/**',
+          '/node_modules/',
+          '/.git/',
+          '/build/',
+          '/dist/',
+          '/coverage/',
+          '/public/',
         ],
       };
 
