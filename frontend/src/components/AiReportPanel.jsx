@@ -342,19 +342,25 @@ const AiReportPanel = ({ report, threatData }) => {
       </div>
 
       {expanded && (
-        <div className="prose prose-invert max-w-none">
+        <div className="prose prose-invert max-w-none overflow-x-auto">
           <div
-            className="p-6 bg-black/30 rounded-lg text-gray-300 leading-relaxed"
-            style={{ fontFamily: 'Inter, sans-serif' }}
+            className="p-6 bg-black/30 rounded-lg text-gray-300 leading-relaxed overflow-x-auto"
+            style={{ 
+              fontFamily: 'Inter, sans-serif',
+              wordWrap: 'break-word',
+              overflowWrap: 'break-word',
+              wordBreak: 'break-word',
+              minWidth: '100%'
+            }}
           >
             <ReactMarkdown
               components={{
-                h2: ({ node, ...props }) => <h2 className="text-2xl font-bold text-green-400 mb-4 mt-6" {...props} />,
-                h3: ({ node, ...props }) => <h3 className="text-xl font-semibold text-purple-400 mb-3 mt-4" {...props} />,
+                h2: ({ node, ...props }) => <h2 className="text-2xl font-bold text-green-400 mb-4 mt-6 break-words whitespace-pre-wrap" {...props} />,
+                h3: ({ node, ...props }) => <h3 className="text-xl font-semibold text-purple-400 mb-3 mt-4 break-words whitespace-pre-wrap" {...props} />,
                 ul: ({ node, ...props }) => <ul className="list-none space-y-2 my-4" {...props} />,
-                li: ({ node, ...props }) => <li className="text-gray-300" {...props} />,
-                p: ({ node, ...props }) => <p className="mb-3" {...props} />,
-                strong: ({ node, ...props }) => <strong className="text-white font-semibold" {...props} />,
+                li: ({ node, ...props }) => <li className="text-gray-300 break-words whitespace-pre-wrap" {...props} />,
+                p: ({ node, ...props }) => <p className="mb-3 break-words whitespace-pre-wrap" {...props} />,
+                strong: ({ node, ...props }) => <strong className="text-white font-semibold break-words" {...props} />,
                 hr: ({ node, ...props }) => <hr className="border-gray-700 my-4" {...props} />
               }}
             >
