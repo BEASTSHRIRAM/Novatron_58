@@ -21,6 +21,17 @@ const webpackConfig = {
         ],
       };
 
+      // Ignore source map warnings for @mediapipe/tasks-vision
+      webpackConfig.module.rules.push({
+        test: /\.m?js$/,
+        enforce: 'pre',
+        use: ['source-map-loader'],
+        resolve: {
+          fullySpecified: false,
+        },
+      });
+      webpackConfig.ignoreWarnings = [/Failed to parse source map/];
+
       return webpackConfig;
     },
   },

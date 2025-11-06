@@ -74,7 +74,7 @@ const Dashboard = () => {
             WebkitTextFillColor: 'transparent',
             textShadow: '0 0 30px rgba(0,255,65,0.3)'
           }}>
-            TICE
+            PredwinAI
           </h1>
         </div>
         <p className="text-gray-400 text-lg" style={{ fontFamily: 'Inter, sans-serif' }}>
