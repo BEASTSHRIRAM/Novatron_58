@@ -78,6 +78,29 @@ async def get_virustotal_data(ip: str) -> Dict[str, Any]:
             logger.warning("VirusTotal API access forbidden (invalid/expired key), using mock data")
         elif e.response.status_code == 404:
             logger.info(f"IP {ip} not found in VirusTotal database")
+        elif e.response.status_code == 429:
+            logger.warning("VirusTotal API rate limit exceeded, using mock data")
+            return {
+                "data": {
+                    "malicious": 3,
+                    "suspicious": 1,
+                    "harmless": 50,
+                    "undetected": 10,
+                    "total_votes": 64,
+                    "reputation": -8,
+                    "last_analysis_stats": {
+                        "malicious": 3,
+                        "suspicious": 1,
+                        "harmless": 50,
+                        "undetected": 10
+                    },
+                    "tags": ["rate-limited"],
+                    "country": "Unknown",
+                    "as_owner": "Unknown",
+                    "network": ""
+                },
+                "mock": True
+            }
         else:
             logger.error(f"VirusTotal API HTTP error: {e.response.status_code}")
         return {"data": {}, "error": str(e)}
