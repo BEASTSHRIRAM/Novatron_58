@@ -322,6 +322,7 @@ const AiReportPanel = ({ report, threatData }) => {
             <FileText className="w-4 h-4" />
             {exporting ? 'Generating...' : 'Export PDF'}
           </button>
+
           <button
             data-testid="export-markdown-button"
             onClick={handleExportMarkdown}
@@ -331,6 +332,7 @@ const AiReportPanel = ({ report, threatData }) => {
             <Download className="w-4 h-4" />
             Export MD
           </button>
+
           <button
             data-testid="toggle-report-button"
             onClick={() => setExpanded(!expanded)}
