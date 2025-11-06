@@ -14,42 +14,61 @@ def correlate_threat_data(
     vt_data = virustotal.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
     
-    # Build context
+    # Extract CVE information from VirusTotal
+    cve_list = []
+    if vt_data.get("last_analysis_results"):
+        # VirusTotal may have CVE data in various fields
+        pass
+    
+    # VirusTotal may have CVE tags or in attributes
+    if vt_data.get("tags"):
+        cve_list.extend([tag for tag in vt_data.get("tags", []) if tag.startswith("CVE-")])
+    
     context = {
-        "asn": ipinfo_data.get("org", "").split()[0] if ipinfo_data.get("org") else vt_data.get("as_owner", "Unknown"),
+        "asn": vt_data.get("asn", ipinfo_data.get("org", "").split()[0] if ipinfo_data.get("org") else ""),
         "org": vt_data.get("as_owner", abuse_data.get("isp", ipinfo_data.get("org", "Unknown"))),
         "country": ipinfo_data.get("country", vt_data.get("country", abuse_data.get("countryCode", "Unknown"))),
         "city": ipinfo_data.get("city", "Unknown"),
-        "region": ipinfo_data.get("region", ""),
+        "region": ipinfo_data.get("region", vt_data.get("continent", "")),
         "location": ipinfo_data.get("loc", ""),
         "timezone": ipinfo_data.get("timezone", ""),
-        "hostname": ipinfo_data.get("hostname", "")
+        "hostname": ipinfo_data.get("hostname", ""),
+        "network": vt_data.get("network", "")
     }
     
-    # Determine threat categories
     categories = []
     if abuse_data.get("abuseConfidenceScore", 0) > 50:
         categories.append("Malicious Activity")
-    if vt_data.get("malicious", 0) > 3:
+    vt_reputation = vt_data.get("reputation", 0)
+    if vt_reputation < -10:
+        categories.append("Bad Reputation")
+    
+    # Check VirusTotal malicious detections - data is already flattened
+    vt_malicious = vt_data.get("malicious", 0)
+    vt_suspicious = vt_data.get("suspicious", 0)
+    vt_harmless = vt_data.get("harmless", 0)
+    vt_undetected = vt_data.get("undetected", 0)
+    
+    if vt_malicious > 5:
         categories.append("Detected as Malicious")
-    if vt_data.get("reputation", 0) < -10:
-        categories.append("Poor Reputation")
-    if "malware" in vt_data.get("tags", []):
-        categories.append("Malware Distribution")
+    
+    # Check for CVEs
+    if cve_list:
+        categories.append("Known Vulnerabilities")
+    
     if abuse_data.get("totalReports", 0) > 10:
         categories.append("Reported Abuse")
     
     if not categories:
         categories.append("Low Risk")
     
-    # Related artifacts
     related = {
         "domains": [],
         "urls": [],
-        "hostnames": []
+        "hostnames": [],
+        "cves": cve_list
     }
     
-    # Evidence from all sources
     evidence = {
         "abuseipdb": {
             "confidence_score": abuse_data.get("abuseConfidenceScore", 0),
@@ -59,12 +78,17 @@ def correlate_threat_data(
             "usage_type": abuse_data.get("usageType", "Unknown")
         },
         "virustotal": {
-            "malicious": vt_data.get("malicious", 0),
-            "suspicious": vt_data.get("suspicious", 0),
-            "harmless": vt_data.get("harmless", 0),
-            "reputation": vt_data.get("reputation", 0),
+            "reputation": vt_reputation,
+            "analysis_stats": {
+                "malicious": vt_malicious,
+                "suspicious": vt_suspicious,
+                "harmless": vt_harmless,
+                "undetected": vt_undetected
+            },
+            "total_votes": vt_data.get("total_votes", 0),
             "tags": vt_data.get("tags", []),
-            "total_votes": vt_data.get("total_votes", 0)
+            "cves": cve_list,
+            "whois": vt_data.get("whois", "")[:500] if vt_data.get("whois") else ""
         },
         "ipinfo": {
             "geolocation": context["location"],

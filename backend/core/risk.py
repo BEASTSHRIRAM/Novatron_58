@@ -16,7 +16,7 @@ def calculate_risk_score(
     vt_data = virustotal.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
     
-    # AbuseIPDB reputation (40% weight)
+    # AbuseIPDB scoring (40% weight)
     abuse_score = abuse_data.get("abuseConfidenceScore", 0)
     if abuse_score > 0:
         abuse_weight = abuse_score * 0.4
@@ -31,27 +31,35 @@ def calculate_risk_score(
         score += 10
         rationale.append(f"Multiple abuse reports ({total_reports})")
     
-    # VirusTotal detection (40% weight)
-    malicious = vt_data.get("malicious", 0)
-    suspicious = vt_data.get("suspicious", 0)
+    # VirusTotal scoring (40% weight) - data is already flattened
+    vt_malicious = vt_data.get("malicious", 0)
+    vt_suspicious = vt_data.get("suspicious", 0)
     
-    if malicious > 5:
-        score += 30
-        rationale.append(f"High malicious detections ({malicious} engines)")
-    elif malicious > 0:
-        score += 15
-        rationale.append(f"Malicious detections ({malicious} engines)")
+    if vt_malicious > 0:
+        vt_score = min(vt_malicious * 5, 40)  # Max 40 points
+        score += vt_score
+        rationale.append(f"Detected as malicious by {vt_malicious} vendors")
     
-    if suspicious > 3:
+    if vt_suspicious > 0:
+        score += min(vt_suspicious * 2, 10)
+        rationale.append(f"Flagged as suspicious by {vt_suspicious} vendors")
+    
+    # VirusTotal reputation
+    vt_reputation = vt_data.get("reputation", 0)
+    if vt_reputation < -20:
+        score += 20
+        rationale.append(f"Very bad reputation score ({vt_reputation})")
+    elif vt_reputation < -10:
         score += 10
-        rationale.append(f"Suspicious detections ({suspicious} engines)")
+        rationale.append(f"Bad reputation score ({vt_reputation})")
     
-    reputation = vt_data.get("reputation", 0)
-    if reputation < -20:
-        score += 15
-        rationale.append(f"Very poor reputation score ({reputation})")
+    # Extract CVEs from tags
+    cve_count = len([tag for tag in vt_data.get("tags", []) if tag.startswith("CVE-")])
+    if cve_count > 0:
+        score += min(cve_count * 10, 20)
+        rationale.append(f"Associated with {cve_count} CVE(s)")
     
-    # IPInfo context (20% weight)
+    # Context-based scoring (20% weight)
     usage_type = abuse_data.get("usageType", "")
     if "hosting" in usage_type.lower() or "data center" in usage_type.lower():
         score += 5
@@ -60,11 +68,9 @@ def calculate_risk_score(
     if abuse_data.get("isWhitelisted"):
         score = max(0, score - 30)
         rationale.append("IP is whitelisted (reduced risk)")
-    
-    # Cap score at 100
+
     score = min(int(score), 100)
-    
-    # Determine label
+
     if score >= 80:
         label = "Critical"
         confidence = "High"
@@ -91,8 +97,9 @@ def calculate_risk_score(
         "rationale": rationale,
         "breakdown": {
             "abuse_reputation": abuse_score,
-            "malicious_detections": malicious,
-            "suspicious_detections": suspicious,
+            "vt_malicious_detections": vt_malicious,
+            "vt_reputation": vt_reputation,
+            "cve_count": cve_count,
             "report_count": total_reports
         }
     }
