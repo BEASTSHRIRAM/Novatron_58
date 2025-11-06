@@ -6,6 +6,7 @@ import Map3D from '../components/Map3D';
 import EvidenceTabs from '../components/EvidenceTabs';
 import AiReportPanel from '../components/AiReportPanel';
 import JsonDrawer from '../components/JsonDrawer';
+import DnsChecker from '../components/DnsChecker';
 import { Loader2, Shield, Search, AlertTriangle } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -199,6 +200,11 @@ const Dashboard = () => {
             <ThreatScoreGauge risk={threatData.risk} />
             <ThreatCard threatData={threatData} />
             <Map3D location={threatData.context.location} country={threatData.context.country} />
+          </div>
+
+          {/* DNS & Domain Checker */}
+          <div className="animate-slide-up" style={{ animationDelay: '0.25s' }}>
+            <DnsChecker ip={threatData.ip} />
           </div>
 
           {/* Evidence Tabs */}
