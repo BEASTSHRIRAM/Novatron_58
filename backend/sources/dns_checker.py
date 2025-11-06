@@ -41,9 +41,10 @@ async def get_dns_data(ip: str) -> Dict[str, Any]:
         
         # Try ipapi.co for comprehensive info (fastest and most reliable free service)
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=10.0)) as client:
                 domain_response = await client.get(
-                    f"https://ipapi.co/{ip}/json/"
+                    f"https://ipapi.co/{ip}/json/",
+                    timeout=httpx.Timeout(5.0, read=10.0)
                 )
                 if domain_response.status_code == 200:
                     domain_data = domain_response.json()
