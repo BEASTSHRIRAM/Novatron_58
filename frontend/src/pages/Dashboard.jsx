@@ -6,7 +6,8 @@ import Map3D from '../components/Map3D';
 import EvidenceTabs from '../components/EvidenceTabs';
 import AiReportPanel from '../components/AiReportPanel';
 import JsonDrawer from '../components/JsonDrawer';
-import { Loader2, Shield, Search, AlertTriangle } from 'lucide-react';
+import { Loader2, Shield, Search, AlertTriangle, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -55,6 +56,59 @@ const Dashboard = () => {
     }
   };
 
+  const handleDownloadReport = async () => {
+    if (!threatData) {
+      setError('No threat data to generate report for. Run an analysis first.');
+      return;
+    }
+
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 15;
+
+      pdf.setFontSize(22);
+      pdf.setTextColor(0, 200, 75);
+      pdf.text('TICE - Threat Report', margin, 25);
+
+      pdf.setFontSize(12);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(`IP: ${threatData.ip}`, margin, 35);
+      pdf.text(`Risk score: ${threatData.risk.score}/100`, margin + 90, 35);
+      pdf.text(`Generated: ${new Date(threatData.timestamp).toLocaleString()}`, margin, 42);
+
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('AI Summary:', margin, 55);
+
+      // add the AI report text (wrap)
+      const contentWidth = pageWidth - margin * 2;
+      const lines = pdf.splitTextToSize(threatData.ai_report || 'No AI report available.', contentWidth);
+      pdf.setFontSize(10);
+      pdf.text(lines, margin, 62);
+
+      // quick evidence summary
+      let y = 62 + lines.length * 4 + 8;
+      pdf.setFontSize(12);
+      pdf.setTextColor(168, 85, 247);
+      pdf.text('Evidence Summary', margin, y);
+      y += 6;
+      pdf.setFontSize(9);
+      pdf.setTextColor(0, 0, 0);
+      const ev = threatData.evidence || {};
+      const abuse = ev.abuseipdb || {};
+      pdf.text(`AbuseIPDB - Reports: ${abuse.total_reports || 0} | Confidence: ${abuse.confidence_score || 0}%`, margin, y);
+      y += 6;
+      const vt = ev.virustotal || {};
+      pdf.text(`VirusTotal - Malicious: ${vt.malicious || 0} | Suspicious: ${vt.suspicious || 0}`, margin, y);
+
+      pdf.save(`TICE-Threat-Report-${threatData.ip}-${Date.now()}.pdf`);
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+      setError('Failed to generate PDF report');
+    }
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleAnalyze();
@@ -74,7 +128,7 @@ const Dashboard = () => {
             WebkitTextFillColor: 'transparent',
             textShadow: '0 0 30px rgba(0,255,65,0.3)'
           }}>
-            PredwinAI
+            TICE
           </h1>
         </div>
         <p className="text-gray-400 text-lg" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -122,6 +176,20 @@ const Dashboard = () => {
                   Analyze Threat
                 </>
               )}
+            </button>
+          </div>
+
+          {/* Report button (below Analyze) */}
+          <div className="mt-4">
+            <button
+              data-testid="report-button"
+              onClick={handleDownloadReport}
+              disabled={!threatData}
+              className="px-6 py-3 rounded-lg font-semibold text-md flex items-center justify-center gap-2 transition-all bg-gray-800 text-gray-100 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              <FileText className="w-5 h-5" />
+              {threatData ? 'Download Report (PDF)' : 'Run analysis to enable report'}
             </button>
           </div>
 
