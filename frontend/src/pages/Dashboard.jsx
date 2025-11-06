@@ -33,7 +33,23 @@ const Dashboard = () => {
       });
       setThreatData(response.data);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to analyze IP address');
+      // Handle different error response formats
+      let errorMessage = 'Failed to analyze IP address';
+      
+      if (err.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        
+        // Check if detail is an array (Pydantic validation errors)
+        if (Array.isArray(detail)) {
+          errorMessage = detail.map(e => e.msg || JSON.stringify(e)).join(', ');
+        } else if (typeof detail === 'string') {
+          errorMessage = detail;
+        } else {
+          errorMessage = JSON.stringify(detail);
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -147,7 +163,7 @@ const Dashboard = () => {
 
           {/* AI Report */}
           <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
-            <AiReportPanel report={threatData.ai_report} />
+            <AiReportPanel report={threatData.ai_report} threatData={threatData} />
           </div>
 
           {/* JSON Drawer */}

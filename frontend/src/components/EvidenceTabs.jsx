@@ -4,6 +4,31 @@ import { Shield, Bug, MapPin, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const EvidenceTabs = ({ evidence }) => {
   const { abuseipdb, virustotal, ipinfo } = evidence;
+  
+  // Debug logging
+  console.log('Evidence data:', evidence);
+  console.log('VirusTotal data:', virustotal);
+  
+  // Extract VirusTotal stats - check both nested and flat structure
+  const vtStats = virustotal?.analysis_stats || virustotal || {};
+  console.log('VT Stats:', vtStats);
+  
+  const vtMalicious = vtStats.malicious || 0;
+  const vtSuspicious = vtStats.suspicious || 0;
+  const vtHarmless = vtStats.harmless || 0;
+  const vtUndetected = vtStats.undetected || 0;
+  const vtReputation = virustotal?.reputation || 0;
+  const vtTags = virustotal?.tags || [];
+  const vtCves = virustotal?.cves || [];
+  
+  // Handle total_votes - it can be a number or an object
+  let vtTotalVotes = virustotal?.total_votes || 0;
+  if (typeof vtTotalVotes === 'object') {
+    // If it's an object, sum the values
+    vtTotalVotes = Object.values(vtTotalVotes).reduce((a, b) => a + b, 0);
+  }
+  
+  const totalEngines = vtTotalVotes || (vtMalicious + vtSuspicious + vtHarmless + vtUndetected);
 
   return (
     <div data-testid="evidence-tabs" className="glass p-6 rounded-2xl">
@@ -80,19 +105,19 @@ const EvidenceTabs = ({ evidence }) => {
             <div className="p-4 bg-black/30 rounded-lg">
               <p className="text-sm text-gray-400 mb-1">Malicious Detections</p>
               <p className="text-2xl font-bold" style={{
-                color: virustotal.malicious > 5 ? '#ef4444' : virustotal.malicious > 0 ? '#f59e0b' : '#00ff41',
+                color: vtMalicious > 5 ? '#ef4444' : vtMalicious > 0 ? '#f59e0b' : '#00ff41',
                 fontFamily: 'Space Grotesk, sans-serif'
               }}>
-                {virustotal.malicious || 0}
+                {vtMalicious}
               </p>
             </div>
             <div className="p-4 bg-black/30 rounded-lg">
               <p className="text-sm text-gray-400 mb-1">Suspicious Detections</p>
               <p className="text-2xl font-bold" style={{
-                color: virustotal.suspicious > 3 ? '#f59e0b' : '#00ff41',
+                color: vtSuspicious > 3 ? '#f59e0b' : '#00ff41',
                 fontFamily: 'Space Grotesk, sans-serif'
               }}>
-                {virustotal.suspicious || 0}
+                {vtSuspicious}
               </p>
             </div>
           </div>
@@ -101,25 +126,54 @@ const EvidenceTabs = ({ evidence }) => {
             <div className="p-4 bg-black/30 rounded-lg">
               <p className="text-sm text-gray-400 mb-1">Harmless</p>
               <p className="text-2xl font-bold text-green-400" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                {virustotal.harmless || 0}
+                {vtHarmless}
               </p>
             </div>
             <div className="p-4 bg-black/30 rounded-lg">
               <p className="text-sm text-gray-400 mb-1">Reputation Score</p>
               <p className="text-2xl font-bold" style={{
-                color: virustotal.reputation < 0 ? '#ef4444' : '#00ff41',
+                color: vtReputation < 0 ? '#ef4444' : '#00ff41',
                 fontFamily: 'Space Grotesk, sans-serif'
               }}>
-                {virustotal.reputation || 0}
+                {vtReputation}
               </p>
+            </div>
+          </div>
+
+          <div className={`p-4 bg-black/30 rounded-lg ${vtCves.length > 0 ? 'border-2 border-red-500/30' : ''}`}>
+            <p className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+              <AlertCircle className={`w-4 h-4 ${vtCves.length > 0 ? 'text-red-400' : 'text-gray-500'}`} />
+              Known CVEs
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {vtCves.length > 0 ? (
+                vtCves.map((cve, idx) => (
+                  <a
+                    key={idx}
+                    href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1 rounded-full text-sm font-semibold hover:scale-105 transition-transform"
+                    style={{
+                      background: 'rgba(220, 38, 38, 0.2)',
+                      border: '1px solid rgba(220, 38, 38, 0.4)',
+                      color: '#dc2626'
+                    }}
+                  >
+                    {cve}
+                  </a>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No CVEs detected</p>
+              )}
             </div>
           </div>
 
           <div className="p-4 bg-black/30 rounded-lg">
             <p className="text-sm text-gray-400 mb-2">Threat Tags</p>
             <div className="flex flex-wrap gap-2">
-              {virustotal.tags && virustotal.tags.length > 0 ? (
-                virustotal.tags.map((tag, idx) => (
+              {vtTags && vtTags.length > 0 ? (
+                vtTags.map((tag, idx) => (
                   <span
                     key={idx}
                     className="px-3 py-1 rounded-full text-sm font-semibold"
@@ -140,7 +194,7 @@ const EvidenceTabs = ({ evidence }) => {
 
           <div className="p-4 bg-black/30 rounded-lg">
             <p className="text-sm text-gray-400 mb-2">Total Votes</p>
-            <p className="text-white font-medium">{virustotal.total_votes || 0} engines analyzed</p>
+            <p className="text-white font-medium">{totalEngines} engines analyzed</p>
           </div>
         </TabsContent>
 

@@ -7,13 +7,7 @@ logger = logging.getLogger(__name__)
 
 ABUSEIPDB_API_KEY = os.environ.get("ABUSEIPDB_API_KEY", "")
 ABUSEIPDB_URL = "https://api.abuseipdb.com/api/v2/check"
-
-
 async def get_abuseipdb_data(ip: str) -> Dict[str, Any]:
-    """
-    Query AbuseIPDB for IP reputation data
-    Returns normalized dict with threat intelligence
-    """
     if not ABUSEIPDB_API_KEY:
         logger.warning("AbuseIPDB API key not configured, using mock data")
         return {
