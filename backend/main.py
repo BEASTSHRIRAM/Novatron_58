@@ -24,9 +24,8 @@ from sources.virustotal_api import get_virustotal_data
 from sources.ipinfo_api import get_ipinfo_data
 from sources.greynoise_api import get_greynoise_data
 from sources.shodan_api import get_shodan_data
-from sources.censys_api import get_censys_api
+from sources.censys_api import get_censys_data
 from sources.passive_dns_api import get_passive_dns_data
-from sources.dns_checker import get_dns_data
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(
@@ -222,28 +221,6 @@ async def analyze_ip(request: IPAnalysisRequest):
     except Exception as e:
         logger.error(f"Error analyzing IP {request.ip}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-
-@api_router.post("/dns-check")
-async def dns_check(request: IPAnalysisRequest):
-    """Check DNS and domain information for an IP address"""
-    try:
-        ip = request.ip
-        logger.info(f"Checking DNS info for IP: {ip}")
-        
-        dns_data = await get_dns_data(ip)
-        
-        return {
-            "ip": ip,
-            "dns_data": dns_data,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error checking DNS for IP {request.ip}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"DNS check failed: {str(e)}")
 
 
 app.include_router(api_router)
