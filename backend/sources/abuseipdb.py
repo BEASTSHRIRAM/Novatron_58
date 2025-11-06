@@ -10,14 +10,20 @@ ABUSEIPDB_URL = "https://api.abuseipdb.com/api/v2/check"
 async def get_abuseipdb_data(ip: str) -> Dict[str, Any]:
     if not ABUSEIPDB_API_KEY:
         logger.warning("AbuseIPDB API key not configured, using mock data")
+        # Create deterministic but variable mock data based on IP string so different IPs get different scores
+        seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+        abuse_conf = max(0, min(95, (seed * 7) % 100))
+        total_reports = (seed * 3) % 120
+        usage = "Data Center/Web Hosting/Transit" if (seed % 3) != 0 else "ISP"
+        isp_name = "DigitalOcean LLC" if (seed % 5) != 0 else "Example ISP"
         return {
             "data": {
-                "abuseConfidenceScore": 75,
-                "usageType": "Data Center/Web Hosting/Transit",
-                "isp": "DigitalOcean LLC",
-                "domain": "digitalocean.com",
-                "totalReports": 42,
-                "numDistinctUsers": 15,
+                "abuseConfidenceScore": abuse_conf,
+                "usageType": usage,
+                "isp": isp_name,
+                "domain": isp_name.lower().replace(' ', '') + ".com",
+                "totalReports": total_reports,
+                "numDistinctUsers": max(0, (seed * 2) % 40),
                 "lastReportedAt": "2025-01-15T10:30:00+00:00",
                 "isWhitelisted": False,
                 "countryCode": "US"
@@ -43,4 +49,24 @@ async def get_abuseipdb_data(ip: str) -> Dict[str, Any]:
             
     except Exception as e:
         logger.error(f"AbuseIPDB API error: {str(e)}")
-        return {"data": {}, "error": str(e)}
+        # Fall back to deterministic mock so different IPs produce different mock results
+        seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+        abuse_conf = max(0, min(95, (seed * 7) % 100))
+        total_reports = (seed * 3) % 120
+        usage = "Data Center/Web Hosting/Transit" if (seed % 3) != 0 else "ISP"
+        isp_name = "DigitalOcean LLC" if (seed % 5) != 0 else "Example ISP"
+        return {
+            "data": {
+                "abuseConfidenceScore": abuse_conf,
+                "usageType": usage,
+                "isp": isp_name,
+                "domain": isp_name.lower().replace(' ', '') + ".com",
+                "totalReports": total_reports,
+                "numDistinctUsers": max(0, (seed * 2) % 40),
+                "lastReportedAt": "2025-01-15T10:30:00+00:00",
+                "isWhitelisted": False,
+                "countryCode": "US"
+            },
+            "mock": True,
+            "error": str(e)
+        }

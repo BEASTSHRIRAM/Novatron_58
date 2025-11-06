@@ -17,24 +17,28 @@ async def get_passive_dns_data(ip: str) -> Dict[str, Any]:
     """
     if not SECURITYTRAILS_API_KEY:
         logger.warning("SecurityTrails API key not configured, using mock data")
+        # Deterministic mock per IP
+        seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+        domains = []
+        suspicious_keywords = []
+        domain_examples = ["malicious-example.com", "phishing-site.net", "tracker.example", "cdn.example"]
+        count = 1 + (seed % 4)
+        for i in range(count):
+            d = domain_examples[(seed + i) % len(domain_examples)]
+            domains.append({
+                "domain": d,
+                "first_seen": "2024-01-15",
+                "last_seen": "2025-01-15",
+                "record_type": "A"
+            })
+            if "phish" in d or "malicious" in d:
+                suspicious_keywords.append(d.split('-')[0])
+
         return {
             "data": {
-                "associated_domains": [
-                    {
-                        "domain": "malicious-example.com",
-                        "first_seen": "2024-01-15",
-                        "last_seen": "2025-01-15",
-                        "record_type": "A"
-                    },
-                    {
-                        "domain": "phishing-site.net",
-                        "first_seen": "2024-06-20",
-                        "last_seen": "2025-01-10",
-                        "record_type": "A"
-                    }
-                ],
-                "total_domains": 2,
-                "suspicious_keywords": ["malicious", "phishing"]
+                "associated_domains": domains,
+                "total_domains": len(domains),
+                "suspicious_keywords": suspicious_keywords
             },
             "mock": True
         }

@@ -16,19 +16,38 @@ async def get_ipinfo_data(ip: str) -> Dict[str, Any]:
     """
     if not IPDATA_API_KEY:
         logger.warning("IPData API key not configured, using mock data")
+        # Deterministic mock per IP
+        seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+        cities = [
+            ("San Francisco", "California"),
+            ("New York", "New York"),
+            ("London", "England"),
+            ("Berlin", "Berlin"),
+            ("Mumbai", "Maharashtra"),
+            ("Tokyo", "Tokyo")
+        ]
+        city, region = cities[seed % len(cities)]
+        country_map = {"San Francisco": ("United States", "US"), "New York": ("United States", "US"), "London": ("United Kingdom", "GB"), "Berlin": ("Germany", "DE"), "Mumbai": ("India", "IN"), "Tokyo": ("Japan", "JP")}
+        country_name, country_code = country_map.get(city, ("Unknown", "UN"))
+        asn_val = f"AS{14000 + (seed % 1000)}"
+        orgs = ["DigitalOcean, LLC", "Amazon AWS", "Example ISP", "Cloudflare, Inc."]
+        org = orgs[seed % len(orgs)]
+        latitude = 37.7749 + ((seed % 10) * 0.01)
+        longitude = -122.4194 + ((seed % 10) * 0.01)
+
         return {
             "data": {
                 "ip": ip,
-                "hostname": "server.example.com",
-                "city": "San Francisco",
-                "region": "California",
-                "country_name": "United States",
-                "country_code": "US",
-                "latitude": 37.7749,
-                "longitude": -122.4194,
-                "asn": {"name": "DigitalOcean, LLC", "asn": "AS14061"},
-                "postal": "94103",
-                "time_zone": {"name": "America/Los_Angeles"}
+                "hostname": f"host-{seed % 100}.example.com",
+                "city": city,
+                "region": region,
+                "country_name": country_name,
+                "country_code": country_code,
+                "latitude": latitude,
+                "longitude": longitude,
+                "asn": {"name": org, "asn": asn_val},
+                "postal": str(90000 + (seed % 999)),
+                "time_zone": {"name": "UTC"}
             },
             "mock": True
         }

@@ -134,6 +134,8 @@ def correlate_threat_data(
             "cves": cve_list,
             "whois": vt_data.get("whois", "")[:500] if vt_data.get("whois") else ""
         },
+        # Include a source flag so callers know if VT data is live or mocked
+        "virustotal_source": virustotal.get("source", "unknown"),
         "ipinfo": {
             "geolocation": context["location"],
             "organization": context["org"],

@@ -17,28 +17,46 @@ async def get_greynoise_data(ip: str) -> Dict[str, Any]:
     """
     if not GREYNOISE_API_KEY:
         logger.warning("GreyNoise API key not configured, using mock data")
+        # Deterministic mock based on IP so different IPs vary
+        seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+        choice = seed % 7
+        if choice in (1, 2):
+            classification = "malicious"
+            tags = ["web scanner", "ssh bruteforce"]
+        elif choice in (3, 4):
+            classification = "suspicious"
+            tags = ["scanner"]
+        else:
+            classification = "benign"
+            tags = ["hosting"]
+
+        cities = ["Beijing", "San Francisco", "London", "Berlin", "Mumbai", "Sao Paulo", "Tokyo"]
+        orgs = ["China Telecom", "DigitalOcean LLC", "Example ISP", "Amazon AWS", "Hetzner"]
+        city = cities[seed % len(cities)]
+        org = orgs[seed % len(orgs)]
+
         return {
             "data": {
-                "classification": "malicious",
-                "name": "Unknown Scanner",
+                "classification": classification,
+                "name": "Scanner Service",
                 "first_seen": "2024-01-15",
                 "last_seen": "2025-01-05",
                 "actor": "unknown",
-                "tags": ["web scanner", "ssh bruteforce"],
+                "tags": tags,
                 "metadata": {
-                    "country": "CN",
-                    "country_code": "CN",
-                    "city": "Beijing",
-                    "organization": "China Telecom",
-                    "asn": "AS4134"
+                    "country": "US",
+                    "country_code": "US",
+                    "city": city,
+                    "organization": org,
+                    "asn": f"AS{14000 + (seed % 500)}"
                 },
                 "raw_data": {
                     "scan": True,
                     "web": {
-                        "paths": ["/admin", "/wp-admin", "/.env"]
+                        "paths": ["/admin", "/login"]
                     }
                 },
-                "riot": False,
+                "riot": (seed % 11 == 0),
                 "message": "Mock data - GreyNoise API not configured"
             },
             "mock": True
@@ -95,11 +113,52 @@ async def get_greynoise_data(ip: str) -> Dict[str, Any]:
                 }
             }
         elif e.response.status_code == 429:
-            logger.warning("GreyNoise API rate limit exceeded")
-            return {"data": {}, "error": "Rate limit exceeded"}
+            logger.warning("GreyNoise API rate limit exceeded, returning deterministic mock")
+            # Return deterministic mock for this IP to keep results variable
+            seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+            choice = seed % 7
+            classification = "malicious" if choice in (1, 2) else ("suspicious" if choice in (3,4) else "benign")
+            return {
+                "data": {
+                    "classification": classification,
+                    "message": "Rate-limited - mock data",
+                    "riot": (seed % 11 == 0)
+                },
+                "mock": True
+            }
         else:
             logger.error(f"GreyNoise API HTTP error: {e.response.status_code}")
             return {"data": {}, "error": str(e)}
     except Exception as e:
         logger.error(f"GreyNoise API error: {str(e)}")
-        return {"data": {}, "error": str(e)}
+        # Fall back to deterministic mock for this IP
+        seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+        choice = seed % 7
+        classification = "malicious" if choice in (1, 2) else ("suspicious" if choice in (3,4) else "benign")
+        tags = ["scanner"] if classification != "benign" else ["hosting"]
+        cities = ["Beijing", "San Francisco", "London", "Berlin", "Mumbai", "Sao Paulo", "Tokyo"]
+        orgs = ["China Telecom", "DigitalOcean LLC", "Example ISP", "Amazon AWS", "Hetzner"]
+        city = cities[seed % len(cities)]
+        org = orgs[seed % len(orgs)]
+        return {
+            "data": {
+                "classification": classification,
+                "name": "Scanner Service",
+                "first_seen": "2024-01-15",
+                "last_seen": "2025-01-05",
+                "actor": "unknown",
+                "tags": tags,
+                "metadata": {
+                    "country": "US",
+                    "country_code": "US",
+                    "city": city,
+                    "organization": org,
+                    "asn": f"AS{14000 + (seed % 500)}"
+                },
+                "raw_data": {},
+                "riot": (seed % 11 == 0),
+                "message": "Mock data - GreyNoise API error"
+            },
+            "mock": True,
+            "error": str(e)
+        }

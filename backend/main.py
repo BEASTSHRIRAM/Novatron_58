@@ -183,11 +183,9 @@ async def analyze_ip(request: IPAnalysisRequest):
             passive_dns=passive_dns_data
         )
         
-        ai_report = generate_threat_report(
-            ip=ip,
-            correlated=correlated,
-            risk=risk
-        )
+        # Do NOT generate an AI report during analyze — keep analyze fast and non-blocking.
+        # AI report generation is handled by the /generate-report endpoint on demand.
+        ai_report = ""
         
         # Generate event timeline
         timeline = generate_event_timeline(

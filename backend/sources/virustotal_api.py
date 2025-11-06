@@ -14,29 +14,41 @@ async def get_virustotal_data(ip: str) -> Dict[str, Any]:
     Query VirusTotal for IP reputation and threat data
     Returns normalized dict with threat intelligence
     """
-    if not VIRUSTOTAL_API_KEY:
-        logger.warning("VirusTotal API key not configured, using mock data")
+    def _mock_for_ip(ip_addr: str) -> Dict[str, Any]:
+        seed = sum([int(x) for x in ip_addr.split('.') if x.isdigit()]) if '.' in ip_addr else sum(ord(c) for c in ip_addr)
+        malicious = seed % 7  # 0-6
+        suspicious = (seed // 3) % 5
+        harmless = max(0, 100 - (malicious * 8 + suspicious * 4))
+        undetected = max(0, 20 - (malicious + suspicious))
+        reputation = ((seed * 13) % 61) - 30  # -30 .. +30
+        tags = [] if malicious == 0 else (['malware'] if malicious > 3 else ['suspicious'])
+        as_owner = "DigitalOcean LLC" if (seed % 5) != 0 else "Example ISP"
         return {
+            "source": "mock",
             "data": {
-                "malicious": 5,
-                "suspicious": 2,
-                "harmless": 60,
-                "undetected": 15,
-                "total_votes": 82,
-                "reputation": -15,
+                "malicious": malicious,
+                "suspicious": suspicious,
+                "harmless": harmless,
+                "undetected": undetected,
+                "total_votes": malicious + suspicious + harmless + undetected,
+                "reputation": reputation,
                 "last_analysis_stats": {
-                    "malicious": 5,
-                    "suspicious": 2,
-                    "harmless": 60,
-                    "undetected": 15
+                    "malicious": malicious,
+                    "suspicious": suspicious,
+                    "harmless": harmless,
+                    "undetected": undetected
                 },
-                "tags": ["malware", "bruteforce"],
+                "tags": tags,
                 "country": "US",
-                "as_owner": "DigitalOcean LLC",
-                "network": "45.33.32.0/24"
+                "as_owner": as_owner,
+                "network": f"{ip_addr}/24"
             },
             "mock": True
         }
+
+    if not VIRUSTOTAL_API_KEY:
+        logger.warning("VirusTotal API key not configured, using mock data")
+        return _mock_for_ip(ip)
     
     try:
         headers = {
@@ -51,6 +63,7 @@ async def get_virustotal_data(ip: str) -> Dict[str, Any]:
             response.raise_for_status()
             
             result = response.json()
+            logger.debug("VirusTotal raw response for %s: %s", ip, result)
             data = result.get("data", {})
             attributes = data.get("attributes", {})
             
@@ -58,6 +71,7 @@ async def get_virustotal_data(ip: str) -> Dict[str, Any]:
             last_analysis = attributes.get("last_analysis_stats", {})
             
             return {
+                "source": "live",
                 "data": {
                     "malicious": last_analysis.get("malicious", 0),
                     "suspicious": last_analysis.get("suspicious", 0),
@@ -74,36 +88,23 @@ async def get_virustotal_data(ip: str) -> Dict[str, Any]:
             }
             
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 403:
+        status = e.response.status_code
+        if status == 403:
             logger.warning("VirusTotal API access forbidden (invalid/expired key), using mock data")
-        elif e.response.status_code == 404:
+            return _mock_for_ip(ip)
+        elif status == 404:
             logger.info(f"IP {ip} not found in VirusTotal database")
-        elif e.response.status_code == 429:
+            return _mock_for_ip(ip)
+        elif status == 429:
             logger.warning("VirusTotal API rate limit exceeded, using mock data")
-            return {
-                "data": {
-                    "malicious": 3,
-                    "suspicious": 1,
-                    "harmless": 50,
-                    "undetected": 10,
-                    "total_votes": 64,
-                    "reputation": -8,
-                    "last_analysis_stats": {
-                        "malicious": 3,
-                        "suspicious": 1,
-                        "harmless": 50,
-                        "undetected": 10
-                    },
-                    "tags": ["rate-limited"],
-                    "country": "Unknown",
-                    "as_owner": "Unknown",
-                    "network": ""
-                },
-                "mock": True
-            }
+            # Use deterministic mock rather than fixed static values
+            mock = _mock_for_ip(ip)
+            # mark as rate-limited in tags
+            mock['data']['tags'] = mock['data'].get('tags', []) + ['rate-limited']
+            return mock
         else:
-            logger.error(f"VirusTotal API HTTP error: {e.response.status_code}")
-        return {"data": {}, "error": str(e)}
+            logger.error(f"VirusTotal API HTTP error: {status}")
+            return _mock_for_ip(ip)
     except Exception as e:
         logger.error(f"VirusTotal API error: {str(e)}")
-        return {"data": {}, "error": str(e)}
+        return _mock_for_ip(ip)

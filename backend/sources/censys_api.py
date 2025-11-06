@@ -18,31 +18,40 @@ async def get_censys_data(ip: str) -> Dict[str, Any]:
     """
     if not CENSYS_API_ID or not CENSYS_API_SECRET:
         logger.warning("Censys API credentials not configured, using mock data")
+        # Deterministic mock per IP
+        seed = sum([int(x) for x in ip.split('.') if x.isdigit()]) if '.' in ip else sum(ord(c) for c in ip)
+        ports = [443]
+        if seed % 3 == 0:
+            ports += [22, 80]
+        certificates = [
+            {
+                "issuer": "Let's Encrypt",
+                "subject": f"example{seed % 10}.com",
+                "valid_from": "2024-01-01",
+                "valid_to": "2025-04-01"
+            }
+        ]
+        asn = f"{14000 + (seed % 1000)}"
+        names = ["DigitalOcean, LLC", "Amazon AWS", "Example ISP"]
+        name = names[seed % len(names)]
+        cities = ["San Francisco", "New York", "Berlin"]
+        city = cities[seed % len(cities)]
+
         return {
             "data": {
-                "services": [
-                    {
-                        "port": 443,
-                        "service_name": "HTTPS",
-                        "certificate": {
-                            "issuer": "Let's Encrypt",
-                            "subject": "example.com",
-                            "valid_from": "2024-01-01",
-                            "valid_to": "2025-04-01"
-                        }
-                    }
-                ],
+                "services": [{"port": p, "service_name": "HTTPS"} for p in ports],
+                "certificates": certificates,
                 "autonomous_system": {
-                    "asn": "14061",
-                    "description": "DIGITALOCEAN-ASN",
-                    "bgp_prefix": "104.131.0.0/16",
-                    "name": "DigitalOcean, LLC",
+                    "asn": asn,
+                    "description": f"{name}-ASN",
+                    "bgp_prefix": f"104.{seed % 255}.0.0/16",
+                    "name": name,
                     "country_code": "US"
                 },
                 "location": {
                     "country": "United States",
-                    "city": "San Francisco",
-                    "coordinates": {"latitude": 37.7749, "longitude": -122.4194}
+                    "city": city,
+                    "coordinates": {"latitude": 37.7749 + (seed % 10) * 0.01, "longitude": -122.4194 + (seed % 10) * 0.01}
                 },
                 "last_updated_at": "2025-01-15T10:30:00Z",
                 "operating_system": {
