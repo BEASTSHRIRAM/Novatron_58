@@ -18,12 +18,22 @@ from typing import Dict, List, Any, Optional
 from core.correlate import correlate_threat_data
 from core.risk import calculate_risk_score
 from core.report import generate_threat_report
+from core.timeline import generate_event_timeline
 from sources.abuseipdb import get_abuseipdb_data
 from sources.virustotal_api import get_virustotal_data
 from sources.ipinfo_api import get_ipinfo_data
+from sources.greynoise_api import get_greynoise_data
+from sources.shodan_api import get_shodan_data
+from sources.censys_api import get_censys_data
+from sources.passive_dns_api import get_passive_dns_data
 
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(
+    mongo_url,
+    serverSelectionTimeoutMS=5000,  # 5 second timeout
+    connectTimeoutMS=5000,
+    socketTimeoutMS=5000
+)
 db = client[os.environ['DB_NAME']]
 
 app = FastAPI(title="TICE - Threat Intelligence Correlation Engine")
@@ -64,6 +74,37 @@ async def health_check():
     return {"status": "ok", "service": "TICE"}
 
 
+@api_router.get("/history/{ip}")
+async def get_ip_history(ip: str):
+    """
+    Get analysis history for a specific IP address
+    Returns all past analyses sorted by timestamp (newest first)
+    """
+    try:
+        # Validate IP format
+        ipaddress.ip_address(ip)
+        
+        # Fetch all analyses for this IP, sorted by newest first
+        cursor = db.analyses.find(
+            {"ip": ip},
+            {"_id": 0}  # Exclude MongoDB _id field
+        ).sort("timestamp", -1).limit(50)  # Limit to last 50 analyses
+        
+        history = await cursor.to_list(length=50)
+        
+        return {
+            "ip": ip,
+            "total_analyses": len(history),
+            "history": history
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid IP address format")
+    except Exception as e:
+        logger.error(f"Error fetching history for IP {ip}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
+
+
 @api_router.post("/analyze", response_model=IPAnalysisResponse)
 async def analyze_ip(request: IPAnalysisRequest):
     try:
@@ -92,27 +133,68 @@ async def analyze_ip(request: IPAnalysisRequest):
         
         logger.info(f"Fetching fresh data for IP: {ip}")
         
-        abuseipdb_data = await get_abuseipdb_data(ip)
-        virustotal_data = await get_virustotal_data(ip)
-        ipinfo_data = await get_ipinfo_data(ip)
+        # Fetch data from all sources in parallel
+        import asyncio
+        abuseipdb_data, virustotal_data, ipinfo_data, greynoise_data, shodan_data, censys_data, passive_dns_data = await asyncio.gather(
+            get_abuseipdb_data(ip),
+            get_virustotal_data(ip),
+            get_ipinfo_data(ip),
+            get_greynoise_data(ip),
+            get_shodan_data(ip),
+            get_censys_data(ip),
+            get_passive_dns_data(ip),
+            return_exceptions=True
+        )
+        
+        # Handle exceptions from parallel execution
+        def safe_data(data, source_name):
+            if isinstance(data, Exception):
+                logger.error(f"{source_name} failed: {str(data)}")
+                return {"data": {}, "error": str(data)}
+            return data
+        
+        abuseipdb_data = safe_data(abuseipdb_data, "AbuseIPDB")
+        virustotal_data = safe_data(virustotal_data, "VirusTotal")
+        ipinfo_data = safe_data(ipinfo_data, "IPInfo")
+        greynoise_data = safe_data(greynoise_data, "GreyNoise")
+        shodan_data = safe_data(shodan_data, "Shodan")
+        censys_data = safe_data(censys_data, "Censys")
+        passive_dns_data = safe_data(passive_dns_data, "Passive DNS")
         
         correlated = correlate_threat_data(
             ip=ip,
             abuseipdb=abuseipdb_data,
             virustotal=virustotal_data,
-            ipinfo=ipinfo_data
+            ipinfo=ipinfo_data,
+            greynoise=greynoise_data,
+            shodan=shodan_data,
+            censys=censys_data,
+            passive_dns=passive_dns_data
         )
         
         risk = calculate_risk_score(
             abuseipdb=abuseipdb_data,
             virustotal=virustotal_data,
-            ipinfo=ipinfo_data
+            ipinfo=ipinfo_data,
+            greynoise=greynoise_data,
+            shodan=shodan_data,
+            censys=censys_data,
+            passive_dns=passive_dns_data
         )
         
         ai_report = generate_threat_report(
             ip=ip,
             correlated=correlated,
             risk=risk
+        )
+        
+        # Generate event timeline
+        timeline = generate_event_timeline(
+            abuseipdb=abuseipdb_data,
+            virustotal=virustotal_data,
+            greynoise=greynoise_data,
+            shodan=shodan_data,
+            passive_dns=passive_dns_data
         )
         
         response = {
@@ -123,6 +205,7 @@ async def analyze_ip(request: IPAnalysisRequest):
             "related": correlated["related"],
             "evidence": correlated["evidence"],
             "ai_report": ai_report,
+            "timeline": timeline,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         

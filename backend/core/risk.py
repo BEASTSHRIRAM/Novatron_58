@@ -7,7 +7,11 @@ logger = logging.getLogger(__name__)
 def calculate_risk_score(
     abuseipdb: Dict[str, Any],
     virustotal: Dict[str, Any],
-    ipinfo: Dict[str, Any]
+    ipinfo: Dict[str, Any],
+    greynoise: Dict[str, Any] = None,
+    shodan: Dict[str, Any] = None,
+    censys: Dict[str, Any] = None,
+    passive_dns: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     score = 0
     rationale = []
@@ -15,6 +19,10 @@ def calculate_risk_score(
     abuse_data = abuseipdb.get("data", {})
     vt_data = virustotal.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
+    greynoise_data = greynoise.get("data", {}) if greynoise else {}
+    shodan_data = shodan.get("data", {}) if shodan else {}
+    censys_data = censys.get("data", {}) if censys else {}
+    passive_dns_data = passive_dns.get("data", {}) if passive_dns else {}
     
     # AbuseIPDB scoring (40% weight)
     abuse_score = abuse_data.get("abuseConfidenceScore", 0)
@@ -53,11 +61,43 @@ def calculate_risk_score(
         score += 10
         rationale.append(f"Bad reputation score ({vt_reputation})")
     
-    # Extract CVEs from tags
+    # Extract CVEs from tags and Shodan
     cve_count = len([tag for tag in vt_data.get("tags", []) if tag.startswith("CVE-")])
-    if cve_count > 0:
-        score += min(cve_count * 10, 20)
-        rationale.append(f"Associated with {cve_count} CVE(s)")
+    shodan_vulns = shodan_data.get("vulns", [])
+    total_cves = cve_count + len(shodan_vulns)
+    
+    if total_cves > 0:
+        score += min(total_cves * 10, 20)
+        rationale.append(f"Associated with {total_cves} CVE(s)")
+    
+    # GreyNoise classification scoring
+    gn_classification = greynoise_data.get("classification", "unknown")
+    if gn_classification == "malicious":
+        score += 20
+        rationale.append("Classified as malicious by GreyNoise")
+    elif gn_classification == "benign":
+        score = max(0, score - 15)
+        rationale.append("Classified as benign service by GreyNoise")
+    
+    # Check if IP is in GreyNoise RIOT (known good)
+    if greynoise_data.get("riot"):
+        score = max(0, score - 20)
+        rationale.append("Known legitimate service (GreyNoise RIOT)")
+    
+    # Shodan open ports risk
+    open_ports = shodan_data.get("ports", [])
+    if len(open_ports) > 10:
+        score += 10
+        rationale.append(f"Excessive open ports ({len(open_ports)})")
+    elif len(open_ports) > 5:
+        score += 5
+        rationale.append(f"Multiple open ports ({len(open_ports)})")
+    
+    # Passive DNS suspicious domains
+    suspicious_keywords = passive_dns_data.get("suspicious_keywords", [])
+    if suspicious_keywords:
+        score += min(len(suspicious_keywords) * 5, 15)
+        rationale.append(f"Associated with suspicious domains: {', '.join(suspicious_keywords[:3])}")
     
     # Context-based scoring (20% weight)
     usage_type = abuse_data.get("usageType", "")
@@ -99,7 +139,10 @@ def calculate_risk_score(
             "abuse_reputation": abuse_score,
             "vt_malicious_detections": vt_malicious,
             "vt_reputation": vt_reputation,
-            "cve_count": cve_count,
-            "report_count": total_reports
+            "cve_count": total_cves,
+            "report_count": total_reports,
+            "greynoise_classification": gn_classification,
+            "shodan_open_ports": len(open_ports),
+            "passive_dns_suspicious": len(suspicious_keywords)
         }
     }
