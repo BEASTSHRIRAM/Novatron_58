@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Server, MapPin, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Shield, Bug, MapPin, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const EvidenceTabs = ({ evidence }) => {
-  const { abuseipdb, shodan, ipinfo } = evidence;
+  const { abuseipdb, virustotal, ipinfo } = evidence;
 
   return (
     <div data-testid="evidence-tabs" className="glass p-6 rounded-2xl">
@@ -22,12 +22,12 @@ const EvidenceTabs = ({ evidence }) => {
             AbuseIPDB
           </TabsTrigger>
           <TabsTrigger
-            data-testid="tab-shodan"
-            value="shodan"
+            data-testid="tab-virustotal"
+            value="virustotal"
             className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 text-gray-400 rounded-md transition-all"
           >
-            <Server className="w-4 h-4 mr-2" />
-            Shodan
+            <Bug className="w-4 h-4 mr-2" />
+            VirusTotal
           </TabsTrigger>
           <TabsTrigger
             data-testid="tab-ipinfo"
@@ -75,49 +75,72 @@ const EvidenceTabs = ({ evidence }) => {
           </div>
         </TabsContent>
 
-        <TabsContent value="shodan" className="mt-6 space-y-4">
+        <TabsContent value="virustotal" className="mt-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Malicious Detections</p>
+              <p className="text-2xl font-bold" style={{
+                color: virustotal.malicious > 5 ? '#ef4444' : virustotal.malicious > 0 ? '#f59e0b' : '#00ff41',
+                fontFamily: 'Space Grotesk, sans-serif'
+              }}>
+                {virustotal.malicious || 0}
+              </p>
+            </div>
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Suspicious Detections</p>
+              <p className="text-2xl font-bold" style={{
+                color: virustotal.suspicious > 3 ? '#f59e0b' : '#00ff41',
+                fontFamily: 'Space Grotesk, sans-serif'
+              }}>
+                {virustotal.suspicious || 0}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Harmless</p>
+              <p className="text-2xl font-bold text-green-400" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                {virustotal.harmless || 0}
+              </p>
+            </div>
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Reputation Score</p>
+              <p className="text-2xl font-bold" style={{
+                color: virustotal.reputation < 0 ? '#ef4444' : '#00ff41',
+                fontFamily: 'Space Grotesk, sans-serif'
+              }}>
+                {virustotal.reputation || 0}
+              </p>
+            </div>
+          </div>
+
           <div className="p-4 bg-black/30 rounded-lg">
-            <p className="text-sm text-gray-400 mb-2">Open Ports</p>
+            <p className="text-sm text-gray-400 mb-2">Threat Tags</p>
             <div className="flex flex-wrap gap-2">
-              {shodan.open_ports && shodan.open_ports.length > 0 ? (
-                shodan.open_ports.map((port, idx) => (
+              {virustotal.tags && virustotal.tags.length > 0 ? (
+                virustotal.tags.map((tag, idx) => (
                   <span
                     key={idx}
                     className="px-3 py-1 rounded-full text-sm font-semibold"
                     style={{
-                      background: 'rgba(0, 255, 65, 0.2)',
-                      border: '1px solid rgba(0, 255, 65, 0.3)',
-                      color: '#00ff41'
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444'
                     }}
                   >
-                    {port}
+                    {tag}
                   </span>
                 ))
               ) : (
-                <p className="text-gray-500 text-sm">No open ports detected</p>
+                <p className="text-gray-500 text-sm">No threat tags</p>
               )}
             </div>
           </div>
 
           <div className="p-4 bg-black/30 rounded-lg">
-            <p className="text-sm text-gray-400 mb-2">Vulnerabilities</p>
-            <div className="space-y-2">
-              {shodan.vulnerabilities && shodan.vulnerabilities.length > 0 ? (
-                shodan.vulnerabilities.map((vuln, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-400" />
-                    <span className="text-red-400 font-mono text-sm">{vuln}</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-sm">No known vulnerabilities</p>
-              )}
-            </div>
-          </div>
-
-          <div className="p-4 bg-black/30 rounded-lg">
-            <p className="text-sm text-gray-400 mb-2">Operating System</p>
-            <p className="text-white font-medium">{shodan.os}</p>
+            <p className="text-sm text-gray-400 mb-2">Total Votes</p>
+            <p className="text-white font-medium">{virustotal.total_votes || 0} engines analyzed</p>
           </div>
         </TabsContent>
 

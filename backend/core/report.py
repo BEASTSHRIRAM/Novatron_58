@@ -57,16 +57,24 @@ def generate_threat_report(
     
     abuse = evidence.get("abuseipdb", {})
     if abuse.get("total_reports", 0) > 0:
-        report_lines.append(f"• **Abuse Reports**: {abuse.get('total_reports')} reports from {abuse.get('confidence_score')}% confidence")
+        report_lines.append(f"• **Abuse Reports**: {abuse.get('total_reports')} reports with {abuse.get('confidence_score')}% confidence")
     
-    shodan_evidence = evidence.get("shodan", {})
-    ports = shodan_evidence.get("open_ports", [])
-    if ports:
-        report_lines.append(f"• **Exposed Ports**: {len(ports)} ports - {', '.join(map(str, ports[:5]))}{'...' if len(ports) > 5 else ''}")
+    vt_evidence = evidence.get("virustotal", {})
+    malicious = vt_evidence.get("malicious", 0)
+    suspicious = vt_evidence.get("suspicious", 0)
+    if malicious > 0:
+        report_lines.append(f"• **VirusTotal Detections**: {malicious} engines flagged as malicious")
+    if suspicious > 0:
+        report_lines.append(f"• **Suspicious Activity**: {suspicious} engines flagged as suspicious")
     
-    vulns = shodan_evidence.get("vulnerabilities", [])
-    if vulns:
-        report_lines.append(f"• **Vulnerabilities**: {len(vulns)} CVEs detected - {', '.join(vulns[:3])}{'...' if len(vulns) > 3 else ''}")
+    reputation = vt_evidence.get("reputation", 0)
+    if reputation != 0:
+        rep_label = "positive" if reputation > 0 else "negative"
+        report_lines.append(f"• **Reputation Score**: {reputation} ({rep_label})")
+    
+    tags = vt_evidence.get("tags", [])
+    if tags:
+        report_lines.append(f"• **Threat Tags**: {', '.join(tags[:5])}{'...' if len(tags) > 5 else ''}")
     
     report_lines.append("")
     

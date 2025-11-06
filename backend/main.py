@@ -19,7 +19,7 @@ from core.correlate import correlate_threat_data
 from core.risk import calculate_risk_score
 from core.report import generate_threat_report
 from sources.abuseipdb import get_abuseipdb_data
-from sources.shodan_api import get_shodan_data
+from sources.virustotal_api import get_virustotal_data
 from sources.ipinfo_api import get_ipinfo_data
 
 mongo_url = os.environ['MONGO_URL']
@@ -71,19 +71,19 @@ async def analyze_ip(request: IPAnalysisRequest):
         logger.info(f"Analyzing IP: {ip}")
         
         abuseipdb_data = await get_abuseipdb_data(ip)
-        shodan_data = await get_shodan_data(ip)
+        virustotal_data = await get_virustotal_data(ip)
         ipinfo_data = await get_ipinfo_data(ip)
         
         correlated = correlate_threat_data(
             ip=ip,
             abuseipdb=abuseipdb_data,
-            shodan=shodan_data,
+            virustotal=virustotal_data,
             ipinfo=ipinfo_data
         )
         
         risk = calculate_risk_score(
             abuseipdb=abuseipdb_data,
-            shodan=shodan_data,
+            virustotal=virustotal_data,
             ipinfo=ipinfo_data
         )
         ai_report = generate_threat_report(

@@ -6,14 +6,14 @@ logger = logging.getLogger(__name__)
 
 def calculate_risk_score(
     abuseipdb: Dict[str, Any],
-    shodan: Dict[str, Any],
+    virustotal: Dict[str, Any],
     ipinfo: Dict[str, Any]
 ) -> Dict[str, Any]:
     score = 0
     rationale = []
     
     abuse_data = abuseipdb.get("data", {})
-    shodan_data = shodan.get("data", {})
+    vt_data = virustotal.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
     
     # AbuseIPDB reputation (40% weight)
@@ -31,20 +31,25 @@ def calculate_risk_score(
         score += 10
         rationale.append(f"Multiple abuse reports ({total_reports})")
     
-    # Shodan exposure (40% weight)
-    ports = shodan_data.get("ports", [])
-    if len(ports) > 10:
-        score += 20
-        rationale.append(f"High port exposure ({len(ports)} open ports)")
-    elif len(ports) > 5:
-        score += 10
-        rationale.append(f"Moderate port exposure ({len(ports)} open ports)")
+    # VirusTotal detection (40% weight)
+    malicious = vt_data.get("malicious", 0)
+    suspicious = vt_data.get("suspicious", 0)
     
-    vulns = shodan_data.get("vulns", [])
-    if len(vulns) > 0:
-        vuln_score = min(len(vulns) * 10, 20)
-        score += vuln_score
-        rationale.append(f"Known vulnerabilities detected ({len(vulns)} CVEs)")
+    if malicious > 5:
+        score += 30
+        rationale.append(f"High malicious detections ({malicious} engines)")
+    elif malicious > 0:
+        score += 15
+        rationale.append(f"Malicious detections ({malicious} engines)")
+    
+    if suspicious > 3:
+        score += 10
+        rationale.append(f"Suspicious detections ({suspicious} engines)")
+    
+    reputation = vt_data.get("reputation", 0)
+    if reputation < -20:
+        score += 15
+        rationale.append(f"Very poor reputation score ({reputation})")
     
     # IPInfo context (20% weight)
     usage_type = abuse_data.get("usageType", "")
@@ -86,8 +91,8 @@ def calculate_risk_score(
         "rationale": rationale,
         "breakdown": {
             "abuse_reputation": abuse_score,
-            "exposure_level": len(ports),
-            "vulnerability_count": len(vulns),
+            "malicious_detections": malicious,
+            "suspicious_detections": suspicious,
             "report_count": total_reports
         }
     }

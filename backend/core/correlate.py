@@ -7,35 +7,35 @@ logger = logging.getLogger(__name__)
 def correlate_threat_data(
     ip: str,
     abuseipdb: Dict[str, Any],
-    shodan: Dict[str, Any],
+    virustotal: Dict[str, Any],
     ipinfo: Dict[str, Any]
 ) -> Dict[str, Any]:
     abuse_data = abuseipdb.get("data", {})
-    shodan_data = shodan.get("data", {})
+    vt_data = virustotal.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
     
     # Build context
     context = {
-        "asn": shodan_data.get("asn", ipinfo_data.get("org", "").split()[0] if ipinfo_data.get("org") else ""),
-        "org": shodan_data.get("org", abuse_data.get("isp", ipinfo_data.get("org", "Unknown"))),
-        "country": ipinfo_data.get("country", shodan_data.get("country_code", abuse_data.get("countryCode", "Unknown"))),
-        "city": ipinfo_data.get("city", shodan_data.get("city", "Unknown")),
+        "asn": ipinfo_data.get("org", "").split()[0] if ipinfo_data.get("org") else vt_data.get("as_owner", "Unknown"),
+        "org": vt_data.get("as_owner", abuse_data.get("isp", ipinfo_data.get("org", "Unknown"))),
+        "country": ipinfo_data.get("country", vt_data.get("country", abuse_data.get("countryCode", "Unknown"))),
+        "city": ipinfo_data.get("city", "Unknown"),
         "region": ipinfo_data.get("region", ""),
         "location": ipinfo_data.get("loc", ""),
         "timezone": ipinfo_data.get("timezone", ""),
-        "hostname": ipinfo_data.get("hostname", shodan_data.get("hostnames", [""])[0] if shodan_data.get("hostnames") else "")
+        "hostname": ipinfo_data.get("hostname", "")
     }
     
     # Determine threat categories
     categories = []
     if abuse_data.get("abuseConfidenceScore", 0) > 50:
         categories.append("Malicious Activity")
-    if shodan_data.get("vulns"):
-        categories.append("Known Vulnerabilities")
-    if len(shodan_data.get("ports", [])) > 5:
-        categories.append("High Port Exposure")
-    if "ssh" in str(shodan_data.get("tags", [])).lower():
-        categories.append("SSH Accessible")
+    if vt_data.get("malicious", 0) > 3:
+        categories.append("Detected as Malicious")
+    if vt_data.get("reputation", 0) < -10:
+        categories.append("Poor Reputation")
+    if "malware" in vt_data.get("tags", []):
+        categories.append("Malware Distribution")
     if abuse_data.get("totalReports", 0) > 10:
         categories.append("Reported Abuse")
     
@@ -44,9 +44,9 @@ def correlate_threat_data(
     
     # Related artifacts
     related = {
-        "domains": shodan_data.get("domains", []),
+        "domains": [],
         "urls": [],
-        "hostnames": shodan_data.get("hostnames", [])
+        "hostnames": []
     }
     
     # Evidence from all sources
@@ -58,12 +58,13 @@ def correlate_threat_data(
             "is_whitelisted": abuse_data.get("isWhitelisted", False),
             "usage_type": abuse_data.get("usageType", "Unknown")
         },
-        "shodan": {
-            "open_ports": shodan_data.get("ports", []),
-            "vulnerabilities": shodan_data.get("vulns", []),
-            "services": shodan_data.get("tags", []),
-            "os": shodan_data.get("os", "Unknown"),
-            "last_update": shodan_data.get("last_update", "")
+        "virustotal": {
+            "malicious": vt_data.get("malicious", 0),
+            "suspicious": vt_data.get("suspicious", 0),
+            "harmless": vt_data.get("harmless", 0),
+            "reputation": vt_data.get("reputation", 0),
+            "tags": vt_data.get("tags", []),
+            "total_votes": vt_data.get("total_votes", 0)
         },
         "ipinfo": {
             "geolocation": context["location"],
