@@ -8,11 +8,19 @@ def correlate_threat_data(
     ip: str,
     abuseipdb: Dict[str, Any],
     virustotal: Dict[str, Any],
-    ipinfo: Dict[str, Any]
+    ipinfo: Dict[str, Any],
+    greynoise: Dict[str, Any] = None,
+    shodan: Dict[str, Any] = None,
+    censys: Dict[str, Any] = None,
+    passive_dns: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     abuse_data = abuseipdb.get("data", {})
     vt_data = virustotal.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
+    greynoise_data = greynoise.get("data", {}) if greynoise else {}
+    shodan_data = shodan.get("data", {}) if shodan else {}
+    censys_data = censys.get("data", {}) if censys else {}
+    passive_dns_data = passive_dns.get("data", {}) if passive_dns else {}
     
     # Extract CVE information from VirusTotal
     cve_list = []
@@ -39,6 +47,14 @@ def correlate_threat_data(
     categories = []
     if abuse_data.get("abuseConfidenceScore", 0) > 50:
         categories.append("Malicious Activity")
+    
+    # GreyNoise classification
+    gn_classification = greynoise_data.get("classification", "unknown")
+    if gn_classification == "malicious":
+        categories.append("Known Malicious Actor")
+    elif gn_classification == "benign":
+        categories.append("Known Benign Service")
+    
     vt_reputation = vt_data.get("reputation", 0)
     if vt_reputation < -10:
         categories.append("Bad Reputation")
@@ -52,22 +68,49 @@ def correlate_threat_data(
     if vt_malicious > 5:
         categories.append("Detected as Malicious")
     
-    # Check for CVEs
-    if cve_list:
+    # Shodan vulnerabilities
+    shodan_vulns = shodan_data.get("vulns", [])
+    if shodan_vulns:
         categories.append("Known Vulnerabilities")
+    
+    # Check for CVEs
+    if cve_list or shodan_vulns:
+        if "Known Vulnerabilities" not in categories:
+            categories.append("Known Vulnerabilities")
     
     if abuse_data.get("totalReports", 0) > 10:
         categories.append("Reported Abuse")
+    
+    # Passive DNS suspicious domains
+    if passive_dns_data.get("suspicious_keywords"):
+        categories.append("Suspicious Domain History")
     
     if not categories:
         categories.append("Low Risk")
     
     related = {
-        "domains": [],
+        "domains": [d.get("domain", "") for d in passive_dns_data.get("associated_domains", [])[:10]] if passive_dns_data.get("associated_domains") else [],
         "urls": [],
-        "hostnames": [],
-        "cves": cve_list
+        "hostnames": [ipinfo_data.get("hostname", "")] if ipinfo_data.get("hostname") else [],
+        "cves": cve_list + shodan_vulns,
+        "threat_groups": []
     }
+    
+    # Extract threat group info from GreyNoise tags and VT tags
+    threat_groups = []
+    gn_tags = greynoise_data.get("tags", [])
+    vt_tags = vt_data.get("tags", [])
+    
+    # Common APT/threat group indicators
+    threat_indicators = ["apt", "lazarus", "fancy bear", "cozy bear", "apt28", "apt29", "turla", "sandworm", "carbanak", "fin7", "emotet", "trickbot", "mirai"]
+    
+    for tag in gn_tags + vt_tags:
+        tag_lower = tag.lower()
+        for indicator in threat_indicators:
+            if indicator in tag_lower and tag not in threat_groups:
+                threat_groups.append(tag)
+    
+    related["threat_groups"] = threat_groups
     
     evidence = {
         "abuseipdb": {
@@ -75,7 +118,8 @@ def correlate_threat_data(
             "total_reports": abuse_data.get("totalReports", 0),
             "last_reported": abuse_data.get("lastReportedAt", ""),
             "is_whitelisted": abuse_data.get("isWhitelisted", False),
-            "usage_type": abuse_data.get("usageType", "Unknown")
+            "usage_type": abuse_data.get("usageType", "Unknown"),
+            "reports": abuse_data.get("reports", [])  # Include detailed attack reports
         },
         "virustotal": {
             "reputation": vt_reputation,
@@ -95,6 +139,33 @@ def correlate_threat_data(
             "organization": context["org"],
             "hostname": context["hostname"],
             "postal_code": ipinfo_data.get("postal", "")
+        },
+        "greynoise": {
+            "classification": gn_classification,
+            "actor": greynoise_data.get("actor", ""),
+            "tags": gn_tags,
+            "first_seen": greynoise_data.get("first_seen", ""),
+            "last_seen": greynoise_data.get("last_seen", ""),
+            "riot": greynoise_data.get("riot", False)
+        },
+        "shodan": {
+            "ports": shodan_data.get("ports", []),
+            "services": shodan_data.get("services", []),
+            "vulns": shodan_vulns,
+            "hostnames": shodan_data.get("hostnames", []),
+            "last_update": shodan_data.get("last_update", "")
+        },
+        "censys": {
+            "services": censys_data.get("services", [])[:5] if censys_data.get("services") else [],  # Limit to 5
+            "certificates": censys_data.get("certificates", [])[:3] if censys_data.get("certificates") else [],  # Limit to 3
+            "autonomous_system": censys_data.get("autonomous_system", {}),
+            "operating_system": censys_data.get("operating_system", {}),
+            "last_updated": censys_data.get("last_updated_at", "")
+        },
+        "passive_dns": {
+            "total_domains": passive_dns_data.get("total_domains", 0),
+            "associated_domains": passive_dns_data.get("associated_domains", [])[:10],  # Limit to 10
+            "suspicious_keywords": passive_dns_data.get("suspicious_keywords", [])
         }
     }
     

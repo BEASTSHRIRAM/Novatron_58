@@ -37,10 +37,29 @@ async def get_shodan_data(ip: str) -> Dict[str, Any]:
         url = SHODAN_URL.format(ip=ip)
         params = {"key": SHODAN_API_KEY}
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
-            return {"data": response.json()}
+            
+            data = response.json()
+            
+            # Extract and normalize service data
+            services = []
+            for item in data.get("data", []):
+                services.append({
+                    "port": item.get("port"),
+                    "protocol": item.get("transport", "tcp"),
+                    "service": item.get("product", ""),
+                    "product": item.get("product", ""),
+                    "version": item.get("version", ""),
+                    "banner": item.get("data", "")[:200]  # Truncate banner
+                })
+            
+            # Add services to response
+            normalized_data = data.copy()
+            normalized_data["services"] = services
+            
+            return {"data": normalized_data}
             
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 403:
