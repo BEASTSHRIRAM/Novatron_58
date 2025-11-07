@@ -211,53 +211,6 @@ const EvidenceTabs = ({ evidence }) => {
               )}
             </div>
           </div>
-
-          <div className={`p-4 bg-black/30 rounded-lg ${otxCves.length > 0 ? 'border-2 border-red-500/30' : ''}`}>
-            <p className="text-sm text-gray-400 mb-2 flex items-center gap-2">
-              <AlertCircle className={`w-4 h-4 ${otxCves.length > 0 ? 'text-red-400' : 'text-gray-500'}`} />
-              Known CVEs
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {otxCves.length > 0 ? (
-                otxCves.map((cve, idx) => (
-                  <a
-                    key={idx}
-                    href={`https://nvd.nist.gov/vuln/detail/${cve}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1 rounded-full text-sm font-semibold hover:scale-105 transition-transform"
-                    style={{
-                      background: 'rgba(220, 38, 38, 0.2)',
-                      border: '1px solid rgba(220, 38, 38, 0.4)',
-                      color: '#dc2626'
-                    }}
-                  >
-                    {cve}
-                  </a>
-                ))
-              ) : (
-                <p className="text-gray-500 text-sm">No CVEs detected</p>
-              )}
-            </div>
-          </div>
-
-          <div className="p-4 bg-black/30 rounded-lg">
-            <p className="text-sm text-gray-400 mb-2">Detection Summary</p>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-sm text-red-400 font-semibold">{otxMalicious}</p>
-                <p className="text-xs text-gray-500">Malicious</p>
-              </div>
-              <div>
-                <p className="text-sm text-yellow-400 font-semibold">{otxSuspicious}</p>
-                <p className="text-xs text-gray-500">Suspicious</p>
-              </div>
-              <div>
-                <p className="text-sm text-green-400 font-semibold">{otxHarmless}</p>
-                <p className="text-xs text-gray-500">Harmless</p>
-              </div>
-            </div>
-          </div>
         </TabsContent>
 
         <TabsContent value="ipinfo" className="mt-6 space-y-4">

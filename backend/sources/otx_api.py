@@ -213,13 +213,33 @@ async def get_otx_data(ip: str) -> Dict[str, Any]:
                 if pulse_industries:
                     industries.update(pulse_industries)
                 
-                # Also check in tags for threat actor names
+                # Also check in tags for threat actor names and malware families
                 pulse_tags = pulse.get("tags", [])
                 for tag in pulse_tags:
                     tag_lower = str(tag).lower()
+                    
                     # Common APT and threat actor indicators
-                    if any(keyword in tag_lower for keyword in ["apt", "lazarus", "fancy bear", "cozy bear", "carbanak"]):
+                    apt_keywords = ["apt", "lazarus", "fancy bear", "cozy bear", "carbanak", "apt28", "apt29", 
+                                   "apt32", "apt34", "apt41", "cobalt", "turla", "sandworm", "kimsuky"]
+                    if any(keyword in tag_lower for keyword in apt_keywords):
                         adversaries.add(tag)
+                    
+                    # Common malware family indicators
+                    malware_keywords = ["ransomware", "trojan", "emotet", "trickbot", "mirai", "qbot", "dridex",
+                                       "cobalt strike", "metasploit", "wannacry", "petya", "notpetya", "ryuk",
+                                       "locky", "cerber", "cryptolocker", "revil", "sodinokibi", "darkside",
+                                       "conti", "lockbit", "blackcat", "hive", "maze", "egregor", "netwalker"]
+                    if any(keyword in tag_lower for keyword in malware_keywords):
+                        malware_families.add(tag)
+                
+                # Also extract from pulse name if it contains malware indicators
+                pulse_name = pulse.get("name", "").lower()
+                for keyword in ["ransomware", "trojan", "malware", "botnet", "backdoor"]:
+                    if keyword in pulse_name:
+                        # Extract the malware name from the pulse title
+                        name_parts = pulse.get("name", "").split()
+                        if len(name_parts) > 0 and len(name_parts[0]) > 3:
+                            malware_families.add(name_parts[0])
             
             # Also extract from related data structure (if exists)
             related_data = pulse_info.get("related", {})
