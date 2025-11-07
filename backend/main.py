@@ -20,7 +20,6 @@ from core.risk import calculate_risk_score
 from core.report import generate_threat_report
 from core.timeline import generate_event_timeline
 from sources.abuseipdb import get_abuseipdb_data
-from sources.virustotal_api import get_virustotal_data
 from sources.otx_api import get_otx_data
 from sources.ipinfo_api import get_ipinfo_data
 from sources.greynoise_api import get_greynoise_data
@@ -111,45 +110,16 @@ async def get_ip_history(ip: str):
 async def analyze_ip(request: IPAnalysisRequest):
     try:
         ip = request.ip
-        logger.info(f"Analyzing IP: {ip}")
+        logger.info(f"Analyzing IP: {ip} - Fetching fresh data (caching disabled)")
         
-        # TEMPORARILY DISABLED CACHING FOR TESTING
-        # Check if we have recent analysis (within last 24 hours)
-        # cached_analysis = await db.analyses.find_one(
-        #     {"ip": ip},
-        #     sort=[("timestamp", -1)]
-        # )
-        
-        # if cached_analysis:
-        #     # Parse timestamp
-        #     from dateutil import parser
-        #     cached_time = parser.isoparse(cached_analysis["timestamp"])
-        #     time_diff = datetime.now(timezone.utc) - cached_time
-            
-        #     # If analysis is less than 24 hours old, return cached result
-        #     if time_diff.total_seconds() < 86400:  # 24 hours in seconds
-        #         logger.info(f"Returning cached analysis for IP: {ip} (age: {time_diff.total_seconds()/3600:.1f} hours)")
-        #         # Remove MongoDB _id field
-        #         cached_analysis.pop("_id", None)
-        #         return cached_analysis
-        
-        logger.info(f"Fetching fresh data for IP: {ip}")
-        
-        # Fetch data from all sources in parallel
+        # Fetch data from ACTIVE sources only (disabled: greynoise, shodan, censys, passive_dns for speed)
         import asyncio
-        abuseipdb_data, otx_data, ipinfo_data, greynoise_data, shodan_data, censys_data, passive_dns_data = await asyncio.gather(
+        abuseipdb_data, otx_data, ipinfo_data = await asyncio.gather(
             get_abuseipdb_data(ip),
             get_otx_data(ip),
             get_ipinfo_data(ip),
-            get_greynoise_data(ip),
-            get_shodan_data(ip),
-            get_censys_data(ip),
-            get_passive_dns_data(ip),
             return_exceptions=True
         )
-        
-        # VirusTotal API is disabled due to quota limits - using OTX as primary threat intelligence source
-        virustotal_data = {"data": {}, "error": "VirusTotal API disabled - using OTX"}
         
         # Handle exceptions from parallel execution
         def safe_data(data, source_name):
@@ -159,18 +129,18 @@ async def analyze_ip(request: IPAnalysisRequest):
             return data
         
         abuseipdb_data = safe_data(abuseipdb_data, "AbuseIPDB")
-        virustotal_data = safe_data(virustotal_data, "VirusTotal")
         otx_data = safe_data(otx_data, "OTX")
         ipinfo_data = safe_data(ipinfo_data, "IPInfo")
-        greynoise_data = safe_data(greynoise_data, "GreyNoise")
-        shodan_data = safe_data(shodan_data, "Shodan")
-        censys_data = safe_data(censys_data, "Censys")
-        passive_dns_data = safe_data(passive_dns_data, "Passive DNS")
+        
+        # Use empty data for disabled sources (for speed)
+        greynoise_data = {"data": {}, "source": "disabled"}
+        shodan_data = {"data": {}, "source": "disabled"}
+        censys_data = {"data": {}, "source": "disabled"}
+        passive_dns_data = {"data": {}, "source": "disabled"}
         
         correlated = correlate_threat_data(
             ip=ip,
             abuseipdb=abuseipdb_data,
-            virustotal=virustotal_data,
             otx=otx_data,
             ipinfo=ipinfo_data,
             greynoise=greynoise_data,
@@ -181,7 +151,6 @@ async def analyze_ip(request: IPAnalysisRequest):
         
         risk = calculate_risk_score(
             abuseipdb=abuseipdb_data,
-            virustotal=virustotal_data,
             otx=otx_data,
             ipinfo=ipinfo_data,
             greynoise=greynoise_data,
@@ -190,6 +159,14 @@ async def analyze_ip(request: IPAnalysisRequest):
             passive_dns=passive_dns_data
         )
         
+        # Calculate OTX Reputation Score (0-10) from aggregated risk score
+        # Map risk score (0-100) to reputation rating (0-10) where 0=good, 10=very bad
+        otx_reputation_rating = min(10, int(risk["score"] / 10))
+        
+        # Add reputation rating to evidence (override any previous calculation)
+        if "otx" in correlated["evidence"]:
+            correlated["evidence"]["otx"]["reputation_score"] = otx_reputation_rating
+        
         # Do NOT generate an AI report during analyze — keep analyze fast and non-blocking.
         # AI report generation is handled by the /generate-report endpoint on demand.
         ai_report = ""
@@ -197,7 +174,7 @@ async def analyze_ip(request: IPAnalysisRequest):
         # Generate event timeline
         timeline = generate_event_timeline(
             abuseipdb=abuseipdb_data,
-            virustotal=virustotal_data,
+            otx=otx_data,
             greynoise=greynoise_data,
             shodan=shodan_data,
             passive_dns=passive_dns_data

@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 def correlate_threat_data(
     ip: str,
     abuseipdb: Dict[str, Any],
-    virustotal: Dict[str, Any],
     otx: Dict[str, Any],
     ipinfo: Dict[str, Any],
     greynoise: Dict[str, Any] = None,
@@ -16,7 +15,6 @@ def correlate_threat_data(
     passive_dns: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     abuse_data = abuseipdb.get("data", {})
-    vt_data = virustotal.get("data", {})
     otx_data = otx.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
     greynoise_data = greynoise.get("data", {}) if greynoise else {}
@@ -24,26 +22,22 @@ def correlate_threat_data(
     censys_data = censys.get("data", {}) if censys else {}
     passive_dns_data = passive_dns.get("data", {}) if passive_dns else {}
     
-    # Extract CVE information from VirusTotal
+    # Extract CVE information from OTX and other sources
     cve_list = []
-    if vt_data.get("last_analysis_results"):
-        # VirusTotal may have CVE data in various fields
-        pass
     
-    # VirusTotal may have CVE tags or in attributes
-    if vt_data.get("tags"):
-        cve_list.extend([tag for tag in vt_data.get("tags", []) if tag.startswith("CVE-")])
+    # OTX may have CVE tags or in pulses
+    # (OTX structure is different - no direct tags field for CVEs)
     
     context = {
-        "asn": vt_data.get("asn", ipinfo_data.get("org", "").split()[0] if ipinfo_data.get("org") else ""),
-        "org": vt_data.get("as_owner", abuse_data.get("isp", ipinfo_data.get("org", "Unknown"))),
-        "country": ipinfo_data.get("country", vt_data.get("country", abuse_data.get("countryCode", "Unknown"))),
-        "city": ipinfo_data.get("city", "Unknown"),
-        "region": ipinfo_data.get("region", vt_data.get("continent", "")),
+        "asn": otx_data.get("asn", ipinfo_data.get("org", "").split()[0] if ipinfo_data.get("org") else ""),
+        "org": ipinfo_data.get("org", abuse_data.get("isp", "Unknown")),
+        "country": ipinfo_data.get("country", otx_data.get("country_code", abuse_data.get("countryCode", "Unknown"))),
+        "city": ipinfo_data.get("city", otx_data.get("city", "Unknown")),
+        "region": ipinfo_data.get("region", ""),
         "location": ipinfo_data.get("loc", ""),
         "timezone": ipinfo_data.get("timezone", ""),
         "hostname": ipinfo_data.get("hostname", ""),
-        "network": vt_data.get("network", "")
+        "network": ""
     }
     
     categories = []
@@ -57,8 +51,8 @@ def correlate_threat_data(
     elif gn_classification == "benign":
         categories.append("Known Benign Service")
     
-    vt_reputation = vt_data.get("reputation", 0)
-    if vt_reputation < -10:
+    otx_reputation = otx_data.get("reputation", 0)
+    if otx_reputation < -10:
         categories.append("Bad Reputation")
     
     # Check OTX malicious detections (primary threat source)
@@ -99,15 +93,14 @@ def correlate_threat_data(
         "threat_groups": otx_data.get("threat_groups", [])  # Use OTX threat groups
     }
     
-    # Extract threat group info from GreyNoise tags and VT tags
-    threat_groups = []
+    # Extract threat group info from GreyNoise tags and OTX threat groups
+    threat_groups = otx_data.get("threat_groups", [])
     gn_tags = greynoise_data.get("tags", [])
-    vt_tags = vt_data.get("tags", [])
     
-    # Common APT/threat group indicators
+    # Common APT/threat group indicators from tags
     threat_indicators = ["apt", "lazarus", "fancy bear", "cozy bear", "apt28", "apt29", "turla", "sandworm", "carbanak", "fin7", "emotet", "trickbot", "mirai"]
     
-    for tag in gn_tags + vt_tags:
+    for tag in gn_tags:
         tag_lower = tag.lower()
         for indicator in threat_indicators:
             if indicator in tag_lower and tag not in threat_groups:
@@ -124,32 +117,25 @@ def correlate_threat_data(
             "usage_type": abuse_data.get("usageType", "Unknown"),
             "reports": abuse_data.get("reports", [])  # Include detailed attack reports
         },
-        "virustotal": {
+        "otx": {
             "reputation": otx_data.get("reputation", 0),
+            "reputation_score": 0,  # Will be calculated from aggregated risk score
+            "pulse_count": otx_data.get("pulse_count", 0),
+            "pulses": otx_data.get("pulses", []),
             "analysis_stats": {
                 "malicious": otx_malicious,
                 "suspicious": otx_suspicious,
                 "harmless": otx_harmless,
                 "undetected": otx_undetected
             },
-            "total_votes": otx_data.get("total_votes", 0),
-            "tags": otx_data.get("tags", []),
-            "cves": cve_list,
-            "whois": otx_data.get("whois", "")[:500] if otx_data.get("whois") else ""
-        },
-        "otx": {
-            "reputation": otx_data.get("reputation"),
-            "pulse_count": otx_data.get("pulse_count", 0),
-            "pulses": otx_data.get("pulses", []),
             "threat_groups": otx_data.get("threat_groups", []),
             "malware_families": otx_data.get("malware_families", []),
             "target_industries": otx_data.get("industries", []),
             "country": otx_data.get("country_name", ""),
             "asn": otx_data.get("asn", ""),
-            "false_positives": otx_data.get("false_positives", [])
+            "false_positives": otx_data.get("false_positives", []),
+            "cves": cve_list
         },
-        # Include a source flag so callers know the data is from OTX
-        "virustotal_source": "otx",
         "ipinfo": {
             "geolocation": context["location"],
             "organization": context["org"],

@@ -79,13 +79,13 @@ AbuseIPDB:
 - Usage Type: {evidence.get('abuseipdb', {}).get('usage_type', 'Unknown')}
 - Whitelisted: {evidence.get('abuseipdb', {}).get('is_whitelisted', False)}
 
-VirusTotal:
-- Malicious Detections: {evidence.get('virustotal', {}).get('malicious', 0)}
-- Suspicious Detections: {evidence.get('virustotal', {}).get('suspicious', 0)}
-- Harmless: {evidence.get('virustotal', {}).get('harmless', 0)}
-- Reputation: {evidence.get('virustotal', {}).get('reputation', 0)}
-- Tags: {', '.join(evidence.get('virustotal', {}).get('tags', []))}
-- CVEs: {', '.join(evidence.get('virustotal', {}).get('cves', []))}
+OTX (AlienVault):
+- Reputation: {evidence.get('otx', {}).get('reputation', 0)}
+- Pulse Count: {evidence.get('otx', {}).get('pulse_count', 0)}
+- Malicious Detections: {evidence.get('otx', {}).get('analysis_stats', {}).get('malicious', 0)}
+- Suspicious Detections: {evidence.get('otx', {}).get('analysis_stats', {}).get('suspicious', 0)}
+- Threat Groups: {', '.join(evidence.get('otx', {}).get('threat_groups', [])[:3])}
+- CVEs: {', '.join(evidence.get('otx', {}).get('cves', []))}
 
 IPInfo:
 - Organization: {evidence.get('ipinfo', {}).get('organization', 'Unknown')}
@@ -175,14 +175,19 @@ def generate_fallback_report(
         report_lines.append(f"• Total Reports: {abuse.get('total_reports')}")
         report_lines.append(f"• Confidence Score: {abuse.get('confidence_score')}%")
     
-    vt = evidence.get("virustotal", {})
-    if vt.get("malicious", 0) > 0 or vt.get("tags", []):
-        report_lines.append(f"### VirusTotal")
-        if vt.get("malicious", 0) > 0:
-            report_lines.append(f"• Malicious Detections: {vt.get('malicious')}")
-            report_lines.append(f"• Suspicious Detections: {vt.get('suspicious', 0)}")
-        if vt.get("tags"):
-            report_lines.append(f"• Threat Tags: {', '.join(vt.get('tags', []))}")
+    otx = evidence.get("otx", {})
+    if otx.get("reputation") is not None or otx.get("pulse_count", 0) > 0:
+        report_lines.append(f"### OTX (AlienVault)")
+        if otx.get("reputation") is not None:
+            report_lines.append(f"• Reputation Score: {otx.get('reputation')}")
+        if otx.get("pulse_count", 0) > 0:
+            report_lines.append(f"• Threat Pulses: {otx.get('pulse_count')}")
+        analysis = otx.get("analysis_stats", {})
+        if analysis.get("malicious", 0) > 0:
+            report_lines.append(f"• Malicious Detections: {analysis.get('malicious')}")
+            report_lines.append(f"• Suspicious Detections: {analysis.get('suspicious', 0)}")
+        if otx.get("threat_groups"):
+            report_lines.append(f"• Threat Groups: {', '.join(otx.get('threat_groups', [])[:3])}")
     
     cves = related.get("cves", [])
     if cves:

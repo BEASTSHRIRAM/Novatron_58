@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 def generate_event_timeline(
     abuseipdb: Dict[str, Any],
-    virustotal: Dict[str, Any],
+    otx: Dict[str, Any],
     greynoise: Dict[str, Any],
     shodan: Dict[str, Any],
     passive_dns: Dict[str, Any]
@@ -20,7 +20,7 @@ def generate_event_timeline(
     
     # Extract data
     abuse_data = abuseipdb.get("data", {})
-    vt_data = virustotal.get("data", {})
+    otx_data = otx.get("data", {})
     greynoise_data = greynoise.get("data", {}) if greynoise else {}
     shodan_data = shodan.get("data", {}) if shodan else {}
     passive_dns_data = passive_dns.get("data", {}) if passive_dns else {}
@@ -38,23 +38,21 @@ def generate_event_timeline(
         except Exception as e:
             logger.error(f"Error parsing AbuseIPDB timestamp: {e}")
     
-    # VirusTotal last analysis
-    if vt_data.get("last_analysis_date"):
+    # OTX (AlienVault) pulse activity
+    otx_pulses = otx_data.get("pulses", [])
+    for pulse in otx_pulses[:5]:  # Limit to 5 most recent pulses
         try:
-            # Convert Unix timestamp to ISO format if needed
-            timestamp = vt_data["last_analysis_date"]
-            if isinstance(timestamp, int):
-                timestamp = datetime.fromtimestamp(timestamp).isoformat()
-            
-            events.append({
-                "timestamp": timestamp,
-                "source": "VirusTotal",
-                "event_type": "malware_scan",
-                "description": f"Scanned by VirusTotal ({vt_data.get('malicious', 0)} malicious detections)",
-                "severity": "high" if vt_data.get("malicious", 0) > 5 else "low"
-            })
+            if pulse.get("modified") or pulse.get("created"):
+                timestamp = pulse.get("modified") or pulse.get("created")
+                events.append({
+                    "timestamp": timestamp,
+                    "source": "OTX",
+                    "event_type": "threat_pulse",
+                    "description": f"Threat pulse: {pulse.get('name', 'Unknown')} (tags: {', '.join(pulse.get('tags', [])[:3])})",
+                    "severity": "high" if any(tag in pulse.get("tags", []) for tag in ["malware", "ransomware", "apt"]) else "medium"
+                })
         except Exception as e:
-            logger.error(f"Error parsing VirusTotal timestamp: {e}")
+            logger.error(f"Error parsing OTX pulse timestamp: {e}")
     
     # GreyNoise first seen
     if greynoise_data.get("first_seen"):

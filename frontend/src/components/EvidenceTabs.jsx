@@ -1,247 +1,291 @@
-import React from 'react';
-import { Shield, AlertTriangle, CheckCircle, Activity, Database } from 'lucide-react';
-import ThreatGroupsCard from './ThreatGroupsCard';
+import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Shield, Bug, MapPin, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const EvidenceTabs = ({ evidence, related }) => {
-  // Create unified evidence structure
-  const unified = {
-    threatScore: {
-      abuseConfidence: evidence?.abuseipdb?.confidence_score || 0,
-      vtReputation: evidence?.virustotal?.reputation || 0,
-      otxReputation: evidence?.otx?.reputation || 0,
-      totalDetections: evidence?.virustotal?.analysis_stats?.malicious || 0
-    },
-    abuseHistory: {
-      totalReports: evidence?.abuseipdb?.total_reports || 0,
-      lastReported: evidence?.abuseipdb?.last_reported,
-      isWhitelisted: evidence?.abuseipdb?.is_whitelisted || false,
-      usageType: evidence?.abuseipdb?.usage_type || 'Unknown',
-      reports: evidence?.abuseipdb?.reports || []
-    },
-    malwareAnalysis: {
-      malicious: evidence?.virustotal?.analysis_stats?.malicious || 0,
-      suspicious: evidence?.virustotal?.analysis_stats?.suspicious || 0,
-      harmless: evidence?.virustotal?.analysis_stats?.harmless || 0,
-      undetected: evidence?.virustotal?.analysis_stats?.undetected || 0,
-      reputation: evidence?.virustotal?.reputation || 0,
-      tags: evidence?.virustotal?.tags || [],
-      cves: evidence?.virustotal?.cves || []
-    },
-    geolocation: {
-      location: evidence?.ipinfo?.geolocation || 'Unknown',
-      organization: evidence?.ipinfo?.organization || 'Unknown',
-      hostname: evidence?.ipinfo?.hostname || 'N/A',
-      postalCode: evidence?.ipinfo?.postal_code || ''
-    },
-    threatClassification: {
-      greynoise: evidence?.greynoise?.classification || 'unknown',
-      actor: evidence?.greynoise?.actor || 'Unknown',
-      tags: evidence?.greynoise?.tags || [],
-      firstSeen: evidence?.greynoise?.first_seen,
-      lastSeen: evidence?.greynoise?.last_seen,
-      riot: evidence?.greynoise?.riot || false
-    },
-    infrastructure: {
-      ports: evidence?.shodan?.ports || [],
-      services: evidence?.shodan?.services || [],
-      vulns: evidence?.shodan?.vulns || [],
-      hostnames: evidence?.shodan?.hostnames || []
-    }
-  };
-
-  const totalVotes = unified.malwareAnalysis.malicious + 
-                     unified.malwareAnalysis.suspicious + 
-                     unified.malwareAnalysis.harmless + 
-                     unified.malwareAnalysis.undetected;
+const EvidenceTabs = ({ evidence }) => {
+  const { abuseipdb, otx, ipinfo } = evidence;
+  
+  // Debug logging
+  console.log('Evidence data:', evidence);
+  console.log('OTX data:', otx);
+  
+  // Extract OTX stats - check both nested and flat structure
+  const otxStats = otx?.analysis_stats || otx || {};
+  console.log('OTX Stats:', otxStats);
+  
+  const otxMalicious = otxStats.malicious || 0;
+  const otxSuspicious = otxStats.suspicious || 0;
+  const otxHarmless = otxStats.harmless || 0;
+  const otxUndetected = otxStats.undetected || 0;
+  const otxReputation = otx?.reputation || 0;
+  const otxReputationScore = otx?.reputation_score || 0;  // 0-10 scale
+  const otxPulseCount = otx?.pulse_count || 0;
+  const otxThreatGroups = otx?.threat_groups || [];
+  const otxMalwareFamilies = otx?.malware_families || [];
+  const otxIndustries = otx?.industries || [];
+  const otxCves = otx?.cves || [];
+  
+  // Total vendors analyzed
+  const totalEngines = otxMalicious + otxSuspicious + otxHarmless + otxUndetected;
 
   return (
-    <div className="glass p-6 rounded-2xl">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-        <Database className="w-6 h-6 text-purple-400" />
-        Unified Threat Intelligence Analysis
-      </h2>
+    <div data-testid="evidence-tabs" className="glass p-6 rounded-2xl">
+      <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'Space Grotesk, sans-serif', color: '#a855f7' }}>
+        Evidence Analysis
+      </h3>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Threat Scoring */}
-        <div className="bg-black/30 rounded-xl p-5 border border-gray-700/50">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-5 h-5 text-green-400" />
-            <h3 className="text-lg font-semibold text-white">Threat Scoring</h3>
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Abuse Confidence</span>
-              <div className="flex items-center gap-2">
-                <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-green-500 to-red-500"
-                    style={{ width: `${unified.threatScore.abuseConfidence}%` }}
-                  />
-                </div>
-                <span className={`font-bold ${unified.threatScore.abuseConfidence > 75 ? 'text-red-400' : unified.threatScore.abuseConfidence > 50 ? 'text-orange-400' : 'text-green-400'}`}>
-                  {unified.threatScore.abuseConfidence}%
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">OTX Reputation</span>
-              <span className={`font-bold ${unified.threatScore.vtReputation < -10 ? 'text-red-400' : unified.threatScore.vtReputation < 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                {unified.threatScore.vtReputation || 'N/A'}
-              </span>
-            </div>
+      <Tabs defaultValue="abuseipdb" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 bg-black/40 p-1 rounded-lg">
+          <TabsTrigger
+            data-testid="tab-abuseipdb"
+            value="abuseipdb"
+            className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 text-gray-400 rounded-md transition-all"
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            AbuseIPDB
+          </TabsTrigger>
+          <TabsTrigger
+            data-testid="tab-otx"
+            value="otx"
+            className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 text-gray-400 rounded-md transition-all"
+          >
+            <Bug className="w-4 h-4 mr-2" />
+            OTX (AlienVault)
+          </TabsTrigger>
+          <TabsTrigger
+            data-testid="tab-ipdata"
+            value="ipinfo"
+            className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 text-gray-400 rounded-md transition-all"
+          >
+            <MapPin className="w-4 h-4 mr-2" />
+            IPData.co
+          </TabsTrigger>
+        </TabsList>
 
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">OTX Reputation (Secondary)</span>
-              <span className={`font-bold ${unified.threatScore.otxReputation < -10 ? 'text-red-400' : unified.threatScore.otxReputation < 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                {unified.threatScore.otxReputation !== null && unified.threatScore.otxReputation !== undefined ? unified.threatScore.otxReputation : 'N/A'}
-              </span>
+        <TabsContent value="abuseipdb" className="mt-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Confidence Score</p>
+              <p className="text-2xl font-bold" style={{
+                color: abuseipdb.confidence_score > 50 ? '#ef4444' : '#00ff41',
+                fontFamily: 'Space Grotesk, sans-serif'
+              }}>
+                {abuseipdb.confidence_score}%
+              </p>
             </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">OTX Malicious Detections</span>
-              <span className={`font-bold ${unified.threatScore.totalDetections > 5 ? 'text-red-400' : unified.threatScore.totalDetections > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                {unified.threatScore.totalDetections}/{totalVotes}
-              </span>
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Total Reports</p>
+              <p className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                {abuseipdb.total_reports}
+              </p>
             </div>
           </div>
-        </div>
 
-        {/* Abuse History */}
-        <div className="bg-black/30 rounded-xl p-5 border border-gray-700/50">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-5 h-5 text-red-400" />
-            <h3 className="text-lg font-semibold text-white">Abuse History</h3>
+          <div className="p-4 bg-black/30 rounded-lg">
+            <p className="text-sm text-gray-400 mb-2">Usage Type</p>
+            <p className="text-white font-medium">{abuseipdb.usage_type}</p>
           </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Total Reports</span>
-              <span className="font-bold text-white">{unified.abuseHistory.totalReports}</span>
+
+          <div className="flex items-center gap-2 p-4 bg-black/30 rounded-lg">
+            {abuseipdb.is_whitelisted ? (
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-yellow-400" />
+            )}
+            <p className="text-white">
+              {abuseipdb.is_whitelisted ? 'Whitelisted' : 'Not Whitelisted'}
+            </p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="otx" className="mt-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">OTX Reputation Score</p>
+              <p className="text-2xl font-bold" style={{
+                color: otxReputationScore >= 7 ? '#ef4444' : otxReputationScore >= 4 ? '#f59e0b' : '#00ff41',
+                fontFamily: 'Space Grotesk, sans-serif'
+              }}>
+                {otxReputationScore}/10
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {otxReputationScore >= 7 ? 'Very Bad' : otxReputationScore >= 4 ? 'Suspicious' : 'Good'}
+              </p>
             </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Usage Type</span>
-              <span className="font-bold text-purple-400">{unified.abuseHistory.usageType}</span>
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Raw OTX Reputation</p>
+              <p className="text-2xl font-bold text-purple-400" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                {otxReputation === null || otxReputation === undefined ? 'N/A' : otxReputation}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">From OTX API</p>
             </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Whitelisted</span>
-              {unified.abuseHistory.isWhitelisted ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Threat Pulses</p>
+              <p className="text-2xl font-bold" style={{
+                color: otxPulseCount > 10 ? '#ef4444' : otxPulseCount > 0 ? '#f59e0b' : '#00ff41',
+                fontFamily: 'Space Grotesk, sans-serif'
+              }}>
+                {otxPulseCount}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {otxPulseCount > 10 ? 'High Activity' : otxPulseCount > 0 ? 'Some Reports' : 'No Reports'}
+              </p>
+            </div>
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-1">Malware Families</p>
+              <p className="text-2xl font-bold text-red-400" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                {otxMalwareFamilies?.length || 0}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Identified</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-black/30 rounded-lg">
+            <p className="text-sm text-gray-400 mb-2">Threat Groups</p>
+            <div className="flex flex-wrap gap-2">
+              {otxThreatGroups && otxThreatGroups.length > 0 ? (
+                otxThreatGroups.slice(0, 5).map((group, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1 rounded-full text-sm font-semibold"
+                    style={{
+                      background: 'rgba(168, 85, 247, 0.2)',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                      color: '#a855f7'
+                    }}
+                  >
+                    {group}
+                  </span>
+                ))
               ) : (
-                <span className="text-gray-500">No</span>
+                <p className="text-gray-500 text-sm">No threat groups identified</p>
               )}
             </div>
-            
-            {unified.abuseHistory.lastReported && (
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Last Reported</span>
-                <span className="text-sm text-gray-500">{new Date(unified.abuseHistory.lastReported).toLocaleDateString()}</span>
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* OTX Threat Intelligence */}
-        <div className="bg-black/30 rounded-xl p-5 border border-gray-700/50">
-          <div className="flex items-center gap-2 mb-4">
-            <Shield className="w-5 h-5 text-purple-400" />
-            <h3 className="text-lg font-semibold text-white">OTX Threat Intelligence</h3>
-          </div>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-500/30">
-                <div className="text-xs text-purple-400 mb-1">OTX Reputation</div>
-                <div className="text-2xl font-bold text-purple-400">{evidence?.otx?.reputation !== null && evidence?.otx?.reputation !== undefined ? evidence?.otx?.reputation : 'N/A'}</div>
-              </div>
-              
-              <div className="bg-orange-900/20 rounded-lg p-3 border border-orange-500/30">
-                <div className="text-xs text-orange-400 mb-1">Threat Pulses</div>
-                <div className="text-2xl font-bold text-orange-400">{evidence?.otx?.pulse_count || 0}</div>
-              </div>
-              
-              <div className="bg-green-900/20 rounded-lg p-3 border border-green-500/30">
-                <div className="text-xs text-green-400 mb-1">Threat Groups</div>
-                <div className="text-2xl font-bold text-green-400">{evidence?.otx?.threat_groups?.length || 0}</div>
-              </div>
-              
-              <div className="bg-red-900/20 rounded-lg p-3 border border-red-500/30">
-                <div className="text-xs text-red-400 mb-1">Malware Families</div>
-                <div className="text-2xl font-bold text-red-400">{evidence?.otx?.malware_families?.length || 0}</div>
-              </div>
+          <div className="p-4 bg-black/30 rounded-lg">
+            <p className="text-sm text-gray-400 mb-2">Malware Families</p>
+            <div className="flex flex-wrap gap-2">
+              {otxMalwareFamilies && otxMalwareFamilies.length > 0 ? (
+                otxMalwareFamilies.slice(0, 5).map((malware, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1 rounded-full text-sm font-semibold"
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      color: '#ef4444'
+                    }}
+                  >
+                    {malware}
+                  </span>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No malware families identified</p>
+              )}
             </div>
-            
-            {evidence?.otx?.threat_groups && evidence?.otx?.threat_groups.length > 0 && (
+          </div>
+
+          <div className="p-4 bg-black/30 rounded-lg">
+            <p className="text-sm text-gray-400 mb-2">Targeted Industries</p>
+            <div className="flex flex-wrap gap-2">
+              {otxIndustries && otxIndustries.length > 0 ? (
+                otxIndustries.slice(0, 8).map((industry, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1 rounded-full text-sm font-semibold"
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      color: '#f59e0b'
+                    }}
+                  >
+                    {industry}
+                  </span>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No specific industries targeted</p>
+              )}
+            </div>
+          </div>
+
+          <div className={`p-4 bg-black/30 rounded-lg ${otxCves.length > 0 ? 'border-2 border-red-500/30' : ''}`}>
+            <p className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+              <AlertCircle className={`w-4 h-4 ${otxCves.length > 0 ? 'text-red-400' : 'text-gray-500'}`} />
+              Known CVEs
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {otxCves.length > 0 ? (
+                otxCves.map((cve, idx) => (
+                  <a
+                    key={idx}
+                    href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1 rounded-full text-sm font-semibold hover:scale-105 transition-transform"
+                    style={{
+                      background: 'rgba(220, 38, 38, 0.2)',
+                      border: '1px solid rgba(220, 38, 38, 0.4)',
+                      color: '#dc2626'
+                    }}
+                  >
+                    {cve}
+                  </a>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No CVEs detected</p>
+              )}
+            </div>
+          </div>
+
+          <div className="p-4 bg-black/30 rounded-lg">
+            <p className="text-sm text-gray-400 mb-2">Detection Summary</p>
+            <div className="grid grid-cols-3 gap-3 text-center">
               <div>
-                <div className="text-xs text-gray-500 mb-2">Threat Groups</div>
-                <div className="flex flex-wrap gap-2">
-                  {evidence?.otx?.threat_groups.slice(0, 6).map((group, idx) => (
-                    <span key={idx} className="px-2 py-1 text-xs rounded bg-red-900/30 text-red-300 border border-red-500/30">
-                      {group}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-sm text-red-400 font-semibold">{otxMalicious}</p>
+                <p className="text-xs text-gray-500">Malicious</p>
               </div>
-            )}
-            
-            {evidence?.otx?.malware_families && evidence?.otx?.malware_families.length > 0 && (
               <div>
-                <div className="text-xs text-gray-500 mb-2">Malware Families</div>
-                <div className="flex flex-wrap gap-2">
-                  {evidence?.otx?.malware_families.slice(0, 6).map((family, idx) => (
-                    <span key={idx} className="px-2 py-1 text-xs rounded bg-orange-900/30 text-orange-300 border border-orange-500/30">
-                      {family}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-sm text-yellow-400 font-semibold">{otxSuspicious}</p>
+                <p className="text-xs text-gray-500">Suspicious</p>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Threat Classification */}
-        {unified.threatClassification.greynoise !== 'unknown' && (
-          <div className="bg-black/30 rounded-xl p-5 border border-gray-700/50">
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="w-5 h-5 text-yellow-400" />
-              <h3 className="text-lg font-semibold text-white">Threat Intelligence</h3>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Classification</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  unified.threatClassification.greynoise === 'malicious' ? 'bg-red-900/30 text-red-400 border border-red-500/30' :
-                  unified.threatClassification.greynoise === 'benign' ? 'bg-green-900/30 text-green-400 border border-green-500/30' :
-                  'bg-gray-900/30 text-gray-400 border border-gray-500/30'
-                }`}>
-                  {unified.threatClassification.greynoise.toUpperCase()}
-                </span>
+              <div>
+                <p className="text-sm text-green-400 font-semibold">{otxHarmless}</p>
+                <p className="text-xs text-gray-500">Harmless</p>
               </div>
-              
-              {unified.threatClassification.actor && unified.threatClassification.actor !== 'Unknown' && (
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Actor</span>
-                  <span className="font-bold text-yellow-400">{unified.threatClassification.actor}</span>
-                </div>
-              )}
-              
-              {unified.threatClassification.riot && (
-                <div className="flex items-center gap-2 text-green-400 text-sm">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Known legitimate service (RIOT)</span>
-                </div>
-              )}
             </div>
           </div>
-        )}
+        </TabsContent>
 
-      </div>
+        <TabsContent value="ipinfo" className="mt-6 space-y-4">
+          <div className="p-4 bg-black/30 rounded-lg">
+            <p className="text-sm text-gray-400 mb-2">Geolocation</p>
+            <p className="text-white font-medium">{ipinfo.geolocation || 'Unknown'}</p>
+          </div>
 
-      {/* Threat Groups Card */}
-      <div className="mt-6">
-        <ThreatGroupsCard evidence={evidence} related={related} />
-      </div>
+          <div className="p-4 bg-black/30 rounded-lg">
+            <p className="text-sm text-gray-400 mb-2">Organization</p>
+            <p className="text-white font-medium">{ipinfo.organization}</p>
+          </div>
+
+          {ipinfo.hostname && (
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-2">Hostname</p>
+              <p className="text-white font-medium break-all">{ipinfo.hostname}</p>
+            </div>
+          )}
+
+          {ipinfo.postal_code && (
+            <div className="p-4 bg-black/30 rounded-lg">
+              <p className="text-sm text-gray-400 mb-2">Postal Code</p>
+              <p className="text-white font-medium">{ipinfo.postal_code}</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
