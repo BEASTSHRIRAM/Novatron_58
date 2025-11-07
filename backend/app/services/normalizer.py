@@ -102,23 +102,40 @@ def create_unified_evidence(evidence: Dict[str, Any]) -> Dict[str, Any]:
     Transform evidence from multiple feeds into unified schema
     
     Args:
-        evidence: Raw evidence dict with abuseipdb, virustotal, ipinfo keys
+        evidence: Raw evidence dict with abuseipdb, virustotal, otx, ipinfo keys
     
     Returns:
         Unified evidence structure
     """
     abuse_data = evidence.get("abuseipdb", {})
     vt_data = evidence.get("virustotal", {})
+    otx_data = evidence.get("otx", {})
     ipinfo_data = evidence.get("ipinfo", {})
     greynoise_data = evidence.get("greynoise", {})
     shodan_data = evidence.get("shodan", {})
     
     # Unified threat metrics
+    # Primary source: OTX (AlienVault) - always use OTX for threat data
+    otx_reputation = otx_data.get("reputation")
+    otx_reputation_score = safe_int(otx_reputation) if otx_reputation is not None else None
+    
+    # Extract threat detection stats from OTX (primary source for malicious/suspicious/harmless)
+    otx_last_analysis = otx_data.get("last_analysis_stats", {})
+    malicious_count = safe_int(otx_last_analysis.get("malicious", 0))
+    suspicious_count = safe_int(otx_last_analysis.get("suspicious", 0))
+    harmless_count = safe_int(otx_last_analysis.get("harmless", 0))
+    undetected_count = safe_int(otx_last_analysis.get("undetected", 0))
+    
+    # VirusTotal is optional - not used as primary source
+    vt_reputation = vt_data.get("reputation")
+    vt_reputation_score = safe_int(vt_reputation) if vt_reputation is not None else None
+    
     unified = {
         "threat_score": {
             "abuse_confidence": safe_float(abuse_data.get("confidence_score", 0)),
-            "vt_reputation": safe_int(vt_data.get("reputation", 0)),
-            "total_detections": safe_int(vt_data.get("analysis_stats", {}).get("malicious", 0))
+            "vt_reputation": vt_reputation_score,
+            "otx_reputation": otx_reputation_score,
+            "total_detections": malicious_count
         },
         
         "abuse_history": {
@@ -130,13 +147,21 @@ def create_unified_evidence(evidence: Dict[str, Any]) -> Dict[str, Any]:
         },
         
         "malware_analysis": {
-            "malicious_detections": safe_int(vt_data.get("analysis_stats", {}).get("malicious", 0)),
-            "suspicious_detections": safe_int(vt_data.get("analysis_stats", {}).get("suspicious", 0)),
-            "harmless_detections": safe_int(vt_data.get("analysis_stats", {}).get("harmless", 0)),
-            "undetected": safe_int(vt_data.get("analysis_stats", {}).get("undetected", 0)),
-            "reputation_score": safe_int(vt_data.get("reputation", 0)),
-            "threat_tags": vt_data.get("tags", []),
+            "malicious_detections": malicious_count,
+            "suspicious_detections": suspicious_count,
+            "harmless_detections": harmless_count,
+            "undetected": undetected_count,
+            "reputation_score": otx_reputation_score or vt_reputation_score,
+            "threat_tags": otx_data.get("tags", []) or vt_data.get("tags", []),
             "cves": vt_data.get("cves", [])
+        },
+        
+        "threat_groups": {
+            "adversaries": otx_data.get("threat_groups", []),
+            "malware_families": otx_data.get("malware_families", []),
+            "target_industries": otx_data.get("industries", []),
+            "pulse_count": otx_data.get("pulse_count", 0),
+            "pulses": otx_data.get("pulses", [])
         },
         
         "geolocation": {

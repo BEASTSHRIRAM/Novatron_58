@@ -209,7 +209,7 @@ const Dashboard = () => {
 
           {/* Evidence Tabs */}
           <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
-            <EvidenceTabs evidence={threatData.evidence} />
+            <EvidenceTabs evidence={threatData.evidence} related={threatData.related} />
           </div>
 
           {/* AI Report */}

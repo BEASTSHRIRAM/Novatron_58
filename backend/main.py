@@ -21,6 +21,7 @@ from core.report import generate_threat_report
 from core.timeline import generate_event_timeline
 from sources.abuseipdb import get_abuseipdb_data
 from sources.virustotal_api import get_virustotal_data
+from sources.otx_api import get_otx_data
 from sources.ipinfo_api import get_ipinfo_data
 from sources.greynoise_api import get_greynoise_data
 from sources.shodan_api import get_shodan_data
@@ -136,9 +137,9 @@ async def analyze_ip(request: IPAnalysisRequest):
         
         # Fetch data from all sources in parallel
         import asyncio
-        abuseipdb_data, virustotal_data, ipinfo_data, greynoise_data, shodan_data, censys_data, passive_dns_data = await asyncio.gather(
+        abuseipdb_data, otx_data, ipinfo_data, greynoise_data, shodan_data, censys_data, passive_dns_data = await asyncio.gather(
             get_abuseipdb_data(ip),
-            get_virustotal_data(ip),
+            get_otx_data(ip),
             get_ipinfo_data(ip),
             get_greynoise_data(ip),
             get_shodan_data(ip),
@@ -146,6 +147,9 @@ async def analyze_ip(request: IPAnalysisRequest):
             get_passive_dns_data(ip),
             return_exceptions=True
         )
+        
+        # VirusTotal API is disabled due to quota limits - using OTX as primary threat intelligence source
+        virustotal_data = {"data": {}, "error": "VirusTotal API disabled - using OTX"}
         
         # Handle exceptions from parallel execution
         def safe_data(data, source_name):
@@ -156,6 +160,7 @@ async def analyze_ip(request: IPAnalysisRequest):
         
         abuseipdb_data = safe_data(abuseipdb_data, "AbuseIPDB")
         virustotal_data = safe_data(virustotal_data, "VirusTotal")
+        otx_data = safe_data(otx_data, "OTX")
         ipinfo_data = safe_data(ipinfo_data, "IPInfo")
         greynoise_data = safe_data(greynoise_data, "GreyNoise")
         shodan_data = safe_data(shodan_data, "Shodan")
@@ -166,6 +171,7 @@ async def analyze_ip(request: IPAnalysisRequest):
             ip=ip,
             abuseipdb=abuseipdb_data,
             virustotal=virustotal_data,
+            otx=otx_data,
             ipinfo=ipinfo_data,
             greynoise=greynoise_data,
             shodan=shodan_data,
@@ -176,6 +182,7 @@ async def analyze_ip(request: IPAnalysisRequest):
         risk = calculate_risk_score(
             abuseipdb=abuseipdb_data,
             virustotal=virustotal_data,
+            otx=otx_data,
             ipinfo=ipinfo_data,
             greynoise=greynoise_data,
             shodan=shodan_data,

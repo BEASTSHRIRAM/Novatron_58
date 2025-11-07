@@ -1,12 +1,14 @@
 import React from 'react';
 import { Shield, AlertTriangle, CheckCircle, Activity, Database } from 'lucide-react';
+import ThreatGroupsCard from './ThreatGroupsCard';
 
-const EvidenceTabs = ({ evidence }) => {
+const EvidenceTabs = ({ evidence, related }) => {
   // Create unified evidence structure
   const unified = {
     threatScore: {
       abuseConfidence: evidence?.abuseipdb?.confidence_score || 0,
       vtReputation: evidence?.virustotal?.reputation || 0,
+      otxReputation: evidence?.otx?.reputation || 0,
       totalDetections: evidence?.virustotal?.analysis_stats?.malicious || 0
     },
     abuseHistory: {
@@ -84,14 +86,21 @@ const EvidenceTabs = ({ evidence }) => {
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">VirusTotal Reputation</span>
+              <span className="text-gray-400">OTX Reputation</span>
               <span className={`font-bold ${unified.threatScore.vtReputation < -10 ? 'text-red-400' : unified.threatScore.vtReputation < 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                {unified.threatScore.vtReputation}
+                {unified.threatScore.vtReputation || 'N/A'}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">OTX Reputation (Secondary)</span>
+              <span className={`font-bold ${unified.threatScore.otxReputation < -10 ? 'text-red-400' : unified.threatScore.otxReputation < 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                {unified.threatScore.otxReputation !== null && unified.threatScore.otxReputation !== undefined ? unified.threatScore.otxReputation : 'N/A'}
               </span>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Malicious Detections</span>
+              <span className="text-gray-400">OTX Malicious Detections</span>
               <span className={`font-bold ${unified.threatScore.totalDetections > 5 ? 'text-red-400' : unified.threatScore.totalDetections > 0 ? 'text-orange-400' : 'text-green-400'}`}>
                 {unified.threatScore.totalDetections}/{totalVotes}
               </span>
@@ -134,42 +143,55 @@ const EvidenceTabs = ({ evidence }) => {
           </div>
         </div>
 
-        {/* Malware Analysis */}
+        {/* OTX Threat Intelligence */}
         <div className="bg-black/30 rounded-xl p-5 border border-gray-700/50">
           <div className="flex items-center gap-2 mb-4">
             <Shield className="w-5 h-5 text-purple-400" />
-            <h3 className="text-lg font-semibold text-white">Security Analysis</h3>
+            <h3 className="text-lg font-semibold text-white">OTX Threat Intelligence</h3>
           </div>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-red-900/20 rounded-lg p-3 border border-red-500/30">
-                <div className="text-xs text-red-400 mb-1">Malicious</div>
-                <div className="text-2xl font-bold text-red-400">{unified.malwareAnalysis.malicious}</div>
+              <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-500/30">
+                <div className="text-xs text-purple-400 mb-1">OTX Reputation</div>
+                <div className="text-2xl font-bold text-purple-400">{evidence?.otx?.reputation !== null && evidence?.otx?.reputation !== undefined ? evidence?.otx?.reputation : 'N/A'}</div>
               </div>
               
               <div className="bg-orange-900/20 rounded-lg p-3 border border-orange-500/30">
-                <div className="text-xs text-orange-400 mb-1">Suspicious</div>
-                <div className="text-2xl font-bold text-orange-400">{unified.malwareAnalysis.suspicious}</div>
+                <div className="text-xs text-orange-400 mb-1">Threat Pulses</div>
+                <div className="text-2xl font-bold text-orange-400">{evidence?.otx?.pulse_count || 0}</div>
               </div>
               
               <div className="bg-green-900/20 rounded-lg p-3 border border-green-500/30">
-                <div className="text-xs text-green-400 mb-1">Harmless</div>
-                <div className="text-2xl font-bold text-green-400">{unified.malwareAnalysis.harmless}</div>
+                <div className="text-xs text-green-400 mb-1">Threat Groups</div>
+                <div className="text-2xl font-bold text-green-400">{evidence?.otx?.threat_groups?.length || 0}</div>
               </div>
               
-              <div className="bg-gray-900/20 rounded-lg p-3 border border-gray-500/30">
-                <div className="text-xs text-gray-400 mb-1">Undetected</div>
-                <div className="text-2xl font-bold text-gray-400">{unified.malwareAnalysis.undetected}</div>
+              <div className="bg-red-900/20 rounded-lg p-3 border border-red-500/30">
+                <div className="text-xs text-red-400 mb-1">Malware Families</div>
+                <div className="text-2xl font-bold text-red-400">{evidence?.otx?.malware_families?.length || 0}</div>
               </div>
             </div>
             
-            {unified.malwareAnalysis.tags.length > 0 && (
+            {evidence?.otx?.threat_groups && evidence?.otx?.threat_groups.length > 0 && (
               <div>
-                <div className="text-xs text-gray-500 mb-2">Threat Tags</div>
+                <div className="text-xs text-gray-500 mb-2">Threat Groups</div>
                 <div className="flex flex-wrap gap-2">
-                  {unified.malwareAnalysis.tags.slice(0, 6).map((tag, idx) => (
-                    <span key={idx} className="px-2 py-1 text-xs rounded bg-purple-900/30 text-purple-300 border border-purple-500/30">
-                      {tag}
+                  {evidence?.otx?.threat_groups.slice(0, 6).map((group, idx) => (
+                    <span key={idx} className="px-2 py-1 text-xs rounded bg-red-900/30 text-red-300 border border-red-500/30">
+                      {group}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {evidence?.otx?.malware_families && evidence?.otx?.malware_families.length > 0 && (
+              <div>
+                <div className="text-xs text-gray-500 mb-2">Malware Families</div>
+                <div className="flex flex-wrap gap-2">
+                  {evidence?.otx?.malware_families.slice(0, 6).map((family, idx) => (
+                    <span key={idx} className="px-2 py-1 text-xs rounded bg-orange-900/30 text-orange-300 border border-orange-500/30">
+                      {family}
                     </span>
                   ))}
                 </div>
@@ -214,6 +236,11 @@ const EvidenceTabs = ({ evidence }) => {
           </div>
         )}
 
+      </div>
+
+      {/* Threat Groups Card */}
+      <div className="mt-6">
+        <ThreatGroupsCard evidence={evidence} related={related} />
       </div>
     </div>
   );

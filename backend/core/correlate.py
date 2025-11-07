@@ -8,6 +8,7 @@ def correlate_threat_data(
     ip: str,
     abuseipdb: Dict[str, Any],
     virustotal: Dict[str, Any],
+    otx: Dict[str, Any],
     ipinfo: Dict[str, Any],
     greynoise: Dict[str, Any] = None,
     shodan: Dict[str, Any] = None,
@@ -16,6 +17,7 @@ def correlate_threat_data(
 ) -> Dict[str, Any]:
     abuse_data = abuseipdb.get("data", {})
     vt_data = virustotal.get("data", {})
+    otx_data = otx.get("data", {})
     ipinfo_data = ipinfo.get("data", {})
     greynoise_data = greynoise.get("data", {}) if greynoise else {}
     shodan_data = shodan.get("data", {}) if shodan else {}
@@ -59,13 +61,14 @@ def correlate_threat_data(
     if vt_reputation < -10:
         categories.append("Bad Reputation")
     
-    # Check VirusTotal malicious detections - data is already flattened
-    vt_malicious = vt_data.get("malicious", 0)
-    vt_suspicious = vt_data.get("suspicious", 0)
-    vt_harmless = vt_data.get("harmless", 0)
-    vt_undetected = vt_data.get("undetected", 0)
+    # Check OTX malicious detections (primary threat source)
+    otx_last_analysis = otx_data.get("last_analysis_stats", {})
+    otx_malicious = otx_last_analysis.get("malicious", 0)
+    otx_suspicious = otx_last_analysis.get("suspicious", 0)
+    otx_harmless = otx_last_analysis.get("harmless", 0)
+    otx_undetected = otx_last_analysis.get("undetected", 0)
     
-    if vt_malicious > 5:
+    if otx_malicious > 5:
         categories.append("Detected as Malicious")
     
     # Shodan vulnerabilities
@@ -93,7 +96,7 @@ def correlate_threat_data(
         "urls": [],
         "hostnames": [ipinfo_data.get("hostname", "")] if ipinfo_data.get("hostname") else [],
         "cves": cve_list + shodan_vulns,
-        "threat_groups": []
+        "threat_groups": otx_data.get("threat_groups", [])  # Use OTX threat groups
     }
     
     # Extract threat group info from GreyNoise tags and VT tags
@@ -122,20 +125,31 @@ def correlate_threat_data(
             "reports": abuse_data.get("reports", [])  # Include detailed attack reports
         },
         "virustotal": {
-            "reputation": vt_reputation,
+            "reputation": otx_data.get("reputation", 0),
             "analysis_stats": {
-                "malicious": vt_malicious,
-                "suspicious": vt_suspicious,
-                "harmless": vt_harmless,
-                "undetected": vt_undetected
+                "malicious": otx_malicious,
+                "suspicious": otx_suspicious,
+                "harmless": otx_harmless,
+                "undetected": otx_undetected
             },
-            "total_votes": vt_data.get("total_votes", 0),
-            "tags": vt_data.get("tags", []),
+            "total_votes": otx_data.get("total_votes", 0),
+            "tags": otx_data.get("tags", []),
             "cves": cve_list,
-            "whois": vt_data.get("whois", "")[:500] if vt_data.get("whois") else ""
+            "whois": otx_data.get("whois", "")[:500] if otx_data.get("whois") else ""
         },
-        # Include a source flag so callers know if VT data is live or mocked
-        "virustotal_source": virustotal.get("source", "unknown"),
+        "otx": {
+            "reputation": otx_data.get("reputation"),
+            "pulse_count": otx_data.get("pulse_count", 0),
+            "pulses": otx_data.get("pulses", []),
+            "threat_groups": otx_data.get("threat_groups", []),
+            "malware_families": otx_data.get("malware_families", []),
+            "target_industries": otx_data.get("industries", []),
+            "country": otx_data.get("country_name", ""),
+            "asn": otx_data.get("asn", ""),
+            "false_positives": otx_data.get("false_positives", [])
+        },
+        # Include a source flag so callers know the data is from OTX
+        "virustotal_source": "otx",
         "ipinfo": {
             "geolocation": context["location"],
             "organization": context["org"],

@@ -80,25 +80,28 @@ def calculate_risk_score(
     if tf_sub > 0:
         subscores["threatfox"] = tf_sub
 
-    # VirusTotal (optional/paid-ish): keep if you have it
-    vt_mal = _safe_int(vt.get("malicious", 0))
-    vt_susp = _safe_int(vt.get("suspicious", 0))
-    vt_rep = _safe_int(vt.get("reputation", 0))
-    vt_sub = 0
-    if vt_mal > 0:
-        vt_sub += min(100, vt_mal * 10)             # stronger push for true malicious
-        rationale.append(f"Detected as malicious by {vt_mal} vendors")
-    if vt_susp > 0:
-        vt_sub += min(40, vt_susp * 5)
-        rationale.append(f"Flagged as suspicious by {vt_susp} vendors")
-    if vt_rep < -20:
-        vt_sub = min(100, vt_sub + 40)
-        rationale.append(f"Very bad VT reputation ({vt_rep})")
-    elif vt_rep < -10:
-        vt_sub = min(100, vt_sub + 20)
-        rationale.append(f"Bad VT reputation ({vt_rep})")
-    if vt_sub > 0:
-        subscores["virustotal"] = min(100, vt_sub)
+    # OTX (AlienVault) - PRIMARY SOURCE for threat detection (VirusTotal API disabled due to quota)
+    otx_last_analysis = otx_data.get("last_analysis_stats", {})
+    otx_mal = _safe_int(otx_last_analysis.get("malicious", 0))
+    otx_susp = _safe_int(otx_last_analysis.get("suspicious", 0))
+    otx_rep_raw = otx_data.get("reputation")
+    otx_rep = _safe_int(otx_rep_raw) if otx_rep_raw is not None else None
+    otx_sub = 0
+    if otx_mal > 0:
+        otx_sub += min(100, otx_mal * 10)             # stronger push for true malicious
+        rationale.append(f"Detected as malicious by {otx_mal} vendors (OTX)")
+    if otx_susp > 0:
+        otx_sub += min(40, otx_susp * 5)
+        rationale.append(f"Flagged as suspicious by {otx_susp} vendors (OTX)")
+    if otx_rep is not None:
+        if otx_rep < -20:
+            otx_sub = min(100, otx_sub + 40)
+            rationale.append(f"Very bad OTX reputation ({otx_rep})")
+        elif otx_rep < -10:
+            otx_sub = min(100, otx_sub + 20)
+            rationale.append(f"Bad OTX reputation ({otx_rep})")
+    if otx_sub > 0:
+        subscores["otx"] = min(100, otx_sub)
 
     # Passive DNS (free if using CIRCL): suspicious keywords / flux can be a risk hint
     suspicious_keywords = pdns.get("suspicious_keywords", []) or []
@@ -167,11 +170,11 @@ def calculate_risk_score(
 
     # ---- Dynamic weighting across present sources ----
     # Preferred source weights (sum to 1.0 conceptually)
+    # Note: "otx" has replaced "virustotal" as the primary threat intelligence source
     preferred_weights = {
         "abuseipdb": 0.40,
-        "virustotal": 0.25,    # only applied if present
-        "otx": 0.20,
-        "threatfox": 0.15,
+        "otx": 0.25,           # Primary threat detection source (was virustotal, now OTX)
+        "threatfox": 0.20,
         "passivedns": 0.10,
         "ipinfo": 0.05,
         "cves": 0.10,
@@ -192,8 +195,8 @@ def calculate_risk_score(
                 "report_count": abuse_reports,
                 "otx_pulses": pulse_count,
                 "threatfox_iocs": tf_count,
-                "vt_malicious_detections": vt_mal,
-                "vt_reputation": vt_rep,
+                "otx_malicious_detections": otx_mal,
+                "otx_reputation": otx_rep,
                 "cve_count": total_cves,
                 "greynoise_classification": gn_class,
                 "shodan_open_ports": len(open_ports),
@@ -241,8 +244,8 @@ def calculate_risk_score(
             "report_count": abuse_reports,
             "otx_pulses": pulse_count,
             "threatfox_iocs": tf_count,
-            "vt_malicious_detections": vt_mal,
-            "vt_reputation": vt_rep,
+            "otx_malicious_detections": otx_mal,
+            "otx_reputation": otx_rep,
             "cve_count": total_cves,
             "greynoise_classification": gn_class,
             "shodan_open_ports": len(open_ports),
