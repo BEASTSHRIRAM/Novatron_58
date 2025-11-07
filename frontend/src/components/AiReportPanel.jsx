@@ -79,13 +79,13 @@ const AiReportPanel = ({ threatData }) => {
       };
 
       // Helper to add text with word wrap
-      const addText = (text, fontSize, color = [0, 0, 0], isBold = false, maxWidth = contentWidth) => {
+      const addText = (text, fontSize, color = [0, 0, 0], fontStyle = 'normal', maxWidth = contentWidth) => {
         pdf.setFontSize(fontSize);
-        pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
+        pdf.setFont('times', fontStyle); // Using Times for more professional look
         pdf.setTextColor(...color);
         
         const lines = pdf.splitTextToSize(text, maxWidth);
-        const lineHeight = fontSize * 0.4;
+        const lineHeight = fontSize * 0.45;
         
         lines.forEach((line) => {
           checkPageBreak(lineHeight);
@@ -104,21 +104,22 @@ const AiReportPanel = ({ threatData }) => {
       pdf.rect(0, 48, pageWidth, 2, 'F');
 
       // TICE Logo/Title
-      pdf.setFontSize(32);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(36);
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(0, 200, 50);
-      pdf.text('TICE', margin, 25);
+      pdf.text('TICE', margin, 26);
       
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(13);
+      pdf.setFont('times', 'italic');
       pdf.setTextColor(168, 85, 247);
-      pdf.text('Threat Intelligence Correlation Engine', margin, 35);
+      pdf.text('Threat Intelligence Correlation Engine', margin, 36);
 
       // Timestamp
       pdf.setFontSize(9);
+      pdf.setFont('times', 'normal');
       pdf.setTextColor(80, 80, 80);
       const timestamp = new Date(threatData.timestamp).toLocaleString();
-      pdf.text(`Generated: ${timestamp}`, margin, 43);
+      pdf.text(`Generated: ${timestamp}`, margin, 44);
 
       yPosition = 60;
 
@@ -127,14 +128,15 @@ const AiReportPanel = ({ threatData }) => {
       pdf.setFillColor(245, 245, 250);
       pdf.roundedRect(margin, yPosition, contentWidth, 22, 3, 3, 'F');
       
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(13);
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(0, 150, 40);
       pdf.text('IP ADDRESS ANALYSIS', margin + 5, yPosition + 8);
       
-      pdf.setFontSize(16);
+      pdf.setFontSize(18);
+      pdf.setFont('courier', 'bold');
       pdf.setTextColor(0, 0, 0);
-      pdf.text(threatData.ip, margin + 5, yPosition + 16);
+      pdf.text(threatData.ip, margin + 5, yPosition + 17);
 
       // Risk Score Badge
       const riskScore = threatData.risk.score;
@@ -143,8 +145,8 @@ const AiReportPanel = ({ threatData }) => {
       
       pdf.setFillColor(...riskColor);
       pdf.roundedRect(pageWidth - margin - 40, yPosition + 5, 38, 12, 2, 2, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(255, 255, 255);
       pdf.text(`${riskScore}/100`, pageWidth - margin - 35, yPosition + 12, { align: 'left' });
       
@@ -153,7 +155,7 @@ const AiReportPanel = ({ threatData }) => {
       // Threat Classification
       checkPageBreak(15);
       pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(168, 85, 247);
       pdf.text('THREAT CLASSIFICATION', margin, yPosition);
       yPosition += 8;
@@ -163,7 +165,7 @@ const AiReportPanel = ({ threatData }) => {
       pdf.roundedRect(margin, yPosition, contentWidth, categoriesHeight, 2, 2, 'F');
       
       pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont('times', 'normal');
       pdf.setTextColor(0, 0, 0);
       
       if (threatData.categories.length > 0) {
@@ -179,7 +181,7 @@ const AiReportPanel = ({ threatData }) => {
       // Attribution & Context
       checkPageBreak(35);
       pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(168, 85, 247);
       pdf.text('ATTRIBUTION & CONTEXT', margin, yPosition);
       yPosition += 8;
@@ -187,8 +189,8 @@ const AiReportPanel = ({ threatData }) => {
       pdf.setFillColor(250, 250, 252);
       pdf.roundedRect(margin, yPosition, contentWidth, 28, 2, 2, 'F');
       
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setFont('times', 'normal');
       pdf.setTextColor(0, 0, 0);
       
       const context = threatData.context;
@@ -204,7 +206,7 @@ const AiReportPanel = ({ threatData }) => {
       // Evidence Summary
       checkPageBreak(50);
       pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(168, 85, 247);
       pdf.text('EVIDENCE SUMMARY', margin, yPosition);
       yPosition += 8;
@@ -214,56 +216,78 @@ const AiReportPanel = ({ threatData }) => {
       // AbuseIPDB
       pdf.setFillColor(250, 250, 252);
       pdf.roundedRect(margin, yPosition, contentWidth, 20, 2, 2, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(0, 150, 40);
       pdf.text('AbuseIPDB', margin + 5, yPosition + 7);
       
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setFont('times', 'normal');
       pdf.setTextColor(0, 0, 0);
       pdf.text(`Confidence: ${evidence.abuseipdb.confidence_score}% | Reports: ${evidence.abuseipdb.total_reports}`, margin + 5, yPosition + 14);
       
       yPosition += 25;
 
-      // VirusTotal
+      // OTX (AlienVault)
       checkPageBreak(20);
       pdf.setFillColor(250, 250, 252);
       pdf.roundedRect(margin, yPosition, contentWidth, 20, 2, 2, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(0, 150, 40);
-      pdf.text('VirusTotal', margin + 5, yPosition + 7);
+      pdf.text('OTX (AlienVault)', margin + 5, yPosition + 7);
       
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setFont('times', 'normal');
       pdf.setTextColor(0, 0, 0);
-      const vtMal = evidence.virustotal.malicious || 0;
-      const vtSus = evidence.virustotal.suspicious || 0;
-      pdf.text(`Malicious: ${vtMal} | Suspicious: ${vtSus} | Reputation: ${evidence.virustotal.reputation || 0}`, margin + 5, yPosition + 14);
+      const otxPulses = evidence.otx?.pulse_count || 0;
+      const otxRepScore = evidence.otx?.reputation_score || 0;
+      pdf.text(`Threat Pulses: ${otxPulses} | Reputation Score: ${otxRepScore}/10 | Raw Reputation: ${evidence.otx?.reputation || 0}`, margin + 5, yPosition + 14);
       
       yPosition += 25;
 
-      // CVEs if present
-      if (evidence.virustotal.cves && evidence.virustotal.cves.length > 0) {
+      // Threat Groups if present
+      if (evidence.otx?.threat_groups && evidence.otx.threat_groups.length > 0) {
         checkPageBreak(20);
         pdf.setFillColor(255, 245, 245);
-        const cveHeight = Math.min(20, evidence.virustotal.cves.length * 5 + 12);
-        pdf.roundedRect(margin, yPosition, contentWidth, cveHeight, 2, 2, 'F');
+        const groupHeight = Math.min(20, evidence.otx.threat_groups.length * 5 + 12);
+        pdf.roundedRect(margin, yPosition, contentWidth, groupHeight, 2, 2, 'F');
         
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+        pdf.setFont('times', 'bold');
         pdf.setTextColor(239, 68, 68);
-        pdf.text('⚠ Known CVEs', margin + 5, yPosition + 7);
+        pdf.text('⚠ Threat Groups', margin + 5, yPosition + 7);
         
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setFont('times', 'normal');
         pdf.setTextColor(0, 0, 0);
-        const cveText = evidence.virustotal.cves.join(', ');
-        const cveLines = pdf.splitTextToSize(cveText, contentWidth - 10);
-        pdf.text(cveLines, margin + 5, yPosition + 13);
+        const groupText = evidence.otx.threat_groups.slice(0, 10).join(', ');
+        const groupLines = pdf.splitTextToSize(groupText, contentWidth - 10);
+        pdf.text(groupLines, margin + 5, yPosition + 13);
         
-        yPosition += cveHeight + 5;
+        yPosition += groupHeight + 5;
+      }
+
+      // Malware Families if present
+      if (evidence.otx?.malware_families && evidence.otx.malware_families.length > 0) {
+        checkPageBreak(20);
+        pdf.setFillColor(255, 245, 245);
+        const malwareHeight = Math.min(20, evidence.otx.malware_families.length * 5 + 12);
+        pdf.roundedRect(margin, yPosition, contentWidth, malwareHeight, 2, 2, 'F');
+        
+        pdf.setFontSize(11);
+        pdf.setFont('times', 'bold');
+        pdf.setTextColor(239, 68, 68);
+        pdf.text('⚠ Malware Families', margin + 5, yPosition + 7);
+        
+        pdf.setFontSize(9);
+        pdf.setFont('times', 'normal');
+        pdf.setTextColor(0, 0, 0);
+        const malwareText = evidence.otx.malware_families.slice(0, 10).join(', ');
+        const malwareLines = pdf.splitTextToSize(malwareText, contentWidth - 10);
+        pdf.text(malwareLines, margin + 5, yPosition + 13);
+        
+        yPosition += malwareHeight + 5;
       }
 
       yPosition += 5;
@@ -271,14 +295,14 @@ const AiReportPanel = ({ threatData }) => {
       // AI Report Section
       checkPageBreak(15);
       pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('times', 'bold');
       pdf.setTextColor(168, 85, 247);
       pdf.text('AI THREAT ANALYSIS', margin, yPosition);
       yPosition += 8;
 
       // Parse and format the markdown report with cleaned formatting
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setFont('times', 'normal');
       pdf.setTextColor(0, 0, 0);
       
       const reportLines = report.split('\n');
@@ -288,70 +312,68 @@ const AiReportPanel = ({ threatData }) => {
           return;
         }
         
-        let cleanedLine = line;
+        // Remove emojis and special unicode characters that don't render in PDF
+        let cleanedLine = line.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').replace(/[^\x00-\x7F]/g, '').trim();
+        
+        if (!cleanedLine) return;
         
         // Headers
         if (line.startsWith('##')) {
           checkPageBreak(10);
-          cleanedLine = line.replace(/^##\s*/, '').replace(/[*_]/g, '');
-          pdf.setFontSize(11);
-          pdf.setFont('helvetica', 'bold');
+          cleanedLine = cleanedLine.replace(/^##\s*/, '').replace(/[*_]/g, '');
+          pdf.setFontSize(12);
+          pdf.setFont('times', 'bold');
           pdf.setTextColor(0, 120, 215);
-          addText(cleanedLine, 11, [0, 120, 215], true);
+          addText(cleanedLine, 12, [0, 120, 215], 'bold');
           yPosition += 2;
         } else if (line.startsWith('###')) {
           checkPageBreak(8);
-          cleanedLine = line.replace(/^###\s*/, '').replace(/[*_]/g, '');
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'bold');
+          cleanedLine = cleanedLine.replace(/^###\s*/, '').replace(/[*_]/g, '');
+          pdf.setFontSize(11);
+          pdf.setFont('times', 'bold');
           pdf.setTextColor(168, 85, 247);
-          addText(cleanedLine, 10, [168, 85, 247], true);
+          addText(cleanedLine, 11, [168, 85, 247], 'bold');
           yPosition += 1;
         } else if (line.startsWith('####')) {
           checkPageBreak(7);
-          cleanedLine = line.replace(/^####\s*/, '').replace(/[*_]/g, '');
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'bold');
+          cleanedLine = cleanedLine.replace(/^####\s*/, '').replace(/[*_]/g, '');
+          pdf.setFontSize(10);
+          pdf.setFont('times', 'bold');
           pdf.setTextColor(100, 100, 100);
-          addText(cleanedLine, 9, [100, 100, 100], true);
+          addText(cleanedLine, 10, [100, 100, 100], 'bold');
           yPosition += 1;
         } else if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
           checkPageBreak(6);
-          cleanedLine = line.replace(/^[•\-*]\s*/, '').replace(/\*\*/g, '').replace(/[*_]/g, '');
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
+          cleanedLine = cleanedLine.replace(/^[•\-*]\s*/, '').replace(/\*\*/g, '').replace(/[*_]/g, '');
+          pdf.setFontSize(10);
+          pdf.setFont('times', 'normal');
           pdf.setTextColor(0, 0, 0);
-          addText('  • ' + cleanedLine, 9, [0, 0, 0], false);
+          addText('  • ' + cleanedLine, 10, [0, 0, 0], 'normal');
         } else if (line.includes('**')) {
           checkPageBreak(6);
-          cleanedLine = line.replace(/\*\*/g, '');
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'bold');
+          cleanedLine = cleanedLine.replace(/\*\*/g, '');
+          pdf.setFontSize(10);
+          pdf.setFont('times', 'bold');
           pdf.setTextColor(0, 0, 0);
-          addText(cleanedLine, 9, [0, 0, 0], true);
+          addText(cleanedLine, 10, [0, 0, 0], 'bold');
         } else if (line.trim() === '---') {
           checkPageBreak(5);
           pdf.setDrawColor(180, 180, 180);
           pdf.line(margin, yPosition, pageWidth - margin, yPosition);
           yPosition += 5;
-        } else if (line.match(/^[🔴🟡🟢⚠️🚨✅]/)) {
-          checkPageBreak(6);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(0, 0, 0);
-          addText(line, 9, [0, 0, 0], false);
         } else {
           checkPageBreak(6);
-          cleanedLine = line.replace(/[*_]/g, '');
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
+          cleanedLine = cleanedLine.replace(/[*_]/g, '');
+          pdf.setFontSize(10);
+          pdf.setFont('times', 'normal');
           pdf.setTextColor(0, 0, 0);
-          addText(cleanedLine, 9, [0, 0, 0], false);
+          addText(cleanedLine, 10, [0, 0, 0], 'normal');
         }
       });
 
       // Footer on last page
-      pdf.setFontSize(8);
+      pdf.setFontSize(9);
+      pdf.setFont('times', 'italic');
       pdf.setTextColor(100, 100, 100);
       pdf.text('Generated by TICE - Threat Intelligence Correlation Engine', pageWidth / 2, pageHeight - 10, { align: 'center' });
 

@@ -14,6 +14,68 @@ async def get_ipinfo_data(ip: str) -> Dict[str, Any]:
     Query IPData.co for geolocation and organization data
     Returns normalized dict with context intelligence
     """
+    
+    # Special handling for well-known anycast/distributed IPs
+    well_known_ips = {
+        "8.8.8.8": {
+            "ip": "8.8.8.8",
+            "hostname": "dns.google",
+            "city": "Mountain View",
+            "region": "California",
+            "country": "US",
+            "country_name": "United States",
+            "loc": "37.4056,-122.0775",
+            "org": "Google LLC (Anycast DNS)",
+            "asn": "AS15169",
+            "postal": "94043",
+            "timezone": "America/Los_Angeles"
+        },
+        "8.8.4.4": {
+            "ip": "8.8.4.4",
+            "hostname": "dns.google",
+            "city": "Mountain View",
+            "region": "California",
+            "country": "US",
+            "country_name": "United States",
+            "loc": "37.4056,-122.0775",
+            "org": "Google LLC (Anycast DNS)",
+            "asn": "AS15169",
+            "postal": "94043",
+            "timezone": "America/Los_Angeles"
+        },
+        "1.1.1.1": {
+            "ip": "1.1.1.1",
+            "hostname": "one.one.one.one",
+            "city": "San Francisco",
+            "region": "California",
+            "country": "US",
+            "country_name": "United States",
+            "loc": "37.7621,-122.3971",
+            "org": "Cloudflare, Inc. (Anycast DNS)",
+            "asn": "AS13335",
+            "postal": "94107",
+            "timezone": "America/Los_Angeles"
+        },
+        "1.0.0.1": {
+            "ip": "1.0.0.1",
+            "hostname": "one.one.one.one",
+            "city": "San Francisco",
+            "region": "California",
+            "country": "US",
+            "country_name": "United States",
+            "loc": "37.7621,-122.3971",
+            "org": "Cloudflare, Inc. (Anycast DNS)",
+            "asn": "AS13335",
+            "postal": "94107",
+            "timezone": "America/Los_Angeles"
+        }
+    }
+    
+    # Return well-known IP data if matched
+    if ip in well_known_ips:
+        logger.info(f"Using well-known IP data for {ip}")
+        return {"data": well_known_ips[ip]}
+    
     if not IPDATA_API_KEY:
         logger.warning("IPData API key not configured, using mock data")
         # Deterministic mock per IP
@@ -66,16 +128,24 @@ async def get_ipinfo_data(ip: str) -> Dict[str, Any]:
             normalized = {
                 "ip": data.get("ip", ip),
                 "hostname": data.get("hostname", ""),
-                "city": data.get("city", "Unknown"),
-                "region": data.get("region", ""),
+                "city": data.get("city") or "Unknown",
+                "region": data.get("region") or "",
                 "country": data.get("country_code", "Unknown"),
                 "country_name": data.get("country_name", "Unknown"),
                 "loc": f"{data.get('latitude', 0)},{data.get('longitude', 0)}",
                 "org": data.get("asn", {}).get("name", "Unknown"),
                 "asn": data.get("asn", {}).get("asn", "Unknown"),
-                "postal": data.get("postal", ""),
-                "timezone": data.get("time_zone", {}).get("name", "")
+                "postal": data.get("postal") or "",
+                "timezone": data.get("time_zone", {}).get("name", "") if data.get("time_zone") else ""
             }
+            
+            # If city is unknown and coordinates are at country center, note this
+            if normalized["city"] == "Unknown" and data.get("latitude") and data.get("longitude"):
+                # Check if coordinates are approximately at US center (Kansas) - common for anycast IPs
+                lat, lon = data.get("latitude"), data.get("longitude")
+                if 37 <= lat <= 38 and -98 <= lon <= -97:
+                    normalized["city"] = "Distributed/Anycast"
+                    normalized["region"] = "Multiple Locations"
             
             return {"data": normalized}
             

@@ -205,9 +205,6 @@ def calculate_risk_score(
 
     # Weighted sum of subscores
     weighted = sum(_clip01(subscores[s] / 100.0) * weights[s] for s in present)
-
-    # Apply adjustments (GreyNoise, whitelist) AFTER weighted sum
-    # Convert to 0..100
     score = int(round(_clip01(weighted) * 100))
 
     # GreyNoise and whitelist adjust in absolute points then clip
