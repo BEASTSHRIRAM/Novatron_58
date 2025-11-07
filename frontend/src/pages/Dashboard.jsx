@@ -209,12 +209,12 @@ const Dashboard = () => {
 
           {/* Evidence Tabs */}
           <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
-            <EvidenceTabs evidence={threatData.evidence} related={threatData.related} />
+            <EvidenceTabs evidence={threatData.evidence} />
           </div>
 
           {/* AI Report */}
           <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
-            <AiReportPanel threatData={threatData} />
+            <AiReportPanel report={threatData.ai_report} threatData={threatData} />
           </div>
 
           {/* Analysis History */}
@@ -246,15 +246,15 @@ const Dashboard = () => {
                               className="w-3 h-3 rounded-full"
                               style={{
                                 backgroundColor: 
-                                  item.risk.label === 'Critical' ? '#ef4444' :
-                                  item.risk.label === 'High' ? '#f59e0b' :
-                                  item.risk.label === 'Medium' ? '#eab308' :
-                                  item.risk.label === 'Low' ? '#10b981' : '#6b7280'
+                                  item.risk?.label === 'Critical' ? '#ef4444' :
+                                  item.risk?.label === 'High' ? '#f59e0b' :
+                                  item.risk?.label === 'Medium' ? '#eab308' :
+                                  item.risk?.label === 'Low' ? '#10b981' : '#6b7280'
                               }}
                             />
-                            <span className="font-semibold text-white">{item.risk.label} Risk</span>
+                            <span className="font-semibold text-white">{item.risk?.label || 'Unknown'} Risk</span>
                             <span className="text-gray-400">•</span>
-                            <span className="text-gray-400">Score: {item.risk.score}</span>
+                            <span className="text-gray-400">Score: {item.risk?.score || 0}</span>
                           </div>
                           <span className="text-sm text-gray-500">
                             {new Date(item.timestamp).toLocaleString()}
@@ -262,7 +262,7 @@ const Dashboard = () => {
                         </div>
                         
                         <div className="flex flex-wrap gap-2 mb-2">
-                          {item.categories.map((cat, idx) => (
+                          {item.categories && item.categories.map((cat, idx) => (
                             <span 
                               key={idx}
                               className="px-3 py-1 text-xs rounded-full bg-purple-900/30 text-purple-300 border border-purple-500/30"
@@ -284,7 +284,7 @@ const Dashboard = () => {
                               <span className="text-gray-500">Abuse Reports:</span> {item.evidence.abuseipdb?.total_reports || 0}
                             </div>
                             <div>
-                              <span className="text-gray-500">VT Detections:</span> {item.evidence.virustotal?.analysis_stats?.malicious || 0}
+                              <span className="text-gray-500">OTX Detections:</span> {item.evidence.otx?.analysis_stats?.malicious || 0}
                             </div>
                           </div>
                         </div>
