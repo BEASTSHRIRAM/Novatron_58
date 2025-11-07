@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Brain, ChevronDown, ChevronUp, Download, FileText, Sparkles, Loader, MessageCircle } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Download, FileText, Sparkles, Loader, MessageCircle, Mail } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import jsPDF from 'jspdf';
 import axios from 'axios';
 import ReportChat from './ReportChat';
+import AttackerEmails from './AttackerEmails';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -15,6 +16,7 @@ const AiReportPanel = ({ threatData }) => {
   const [generating, setGenerating] = useState(false);
   const [reportError, setReportError] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [emailsOpen, setEmailsOpen] = useState(false);
 
   const handleGenerateReport = async () => {
     setGenerating(true);
@@ -408,6 +410,16 @@ const AiReportPanel = ({ threatData }) => {
           </button>
 
           <button
+            onClick={() => setEmailsOpen(true)}
+            className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-all flex items-center gap-2"
+            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            title="Discover attacker email addresses"
+          >
+            <Mail className="w-4 h-4" />
+            Attacker Emails
+          </button>
+
+          <button
             data-testid="export-pdf-button"
             onClick={handleExportPDF}
             disabled={exporting || !report}
@@ -508,6 +520,13 @@ const AiReportPanel = ({ threatData }) => {
         report={report}
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
+      />
+
+      <AttackerEmails
+        ip={threatData.ip}
+        threatData={threatData}
+        isOpen={emailsOpen}
+        onClose={() => setEmailsOpen(false)}
       />
     </div>
   );

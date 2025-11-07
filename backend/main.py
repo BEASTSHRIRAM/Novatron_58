@@ -27,6 +27,7 @@ from sources.shodan_api import get_shodan_data
 from sources.censys_api import get_censys_data
 from sources.passive_dns_api import get_passive_dns_data
 from sources.dns_checker import get_dns_data
+from sources.hunter_api import get_attacker_emails
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(
@@ -356,6 +357,50 @@ Keep your response concise but thorough (2-4 paragraphs max). Use markdown forma
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to process your question: {str(e)}"
+        )
+
+
+@api_router.post("/attacker-emails")
+async def get_attacker_emails_endpoint(request: IPAnalysisRequest):
+    """
+    Find email addresses associated with an attacker's IP address.
+    
+    Uses professional OSINT chain:
+    1. Reverse DNS lookup (PTR record)
+    2. Passive DNS fallback (CIRCL)
+    3. Hunter.io email discovery
+    
+    Returns:
+        - emails: List of discovered email addresses with confidence scores
+        - domain_source: How the domain was identified (PTR, PDNS, or Not Found)
+        - domains_checked: Domains that were queried
+        - confidence: Overall confidence score (0-100)
+        - chain_steps: Detailed steps taken during discovery
+    """
+    try:
+        ip = request.ip
+        logger.info(f"Starting email discovery for attacker IP: {ip}")
+        
+        # Call the professional OSINT chain
+        result = await get_attacker_emails(ip)
+        
+        # Store result in database
+        await db.email_discoveries.insert_one({
+            **result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Email discovery complete for {ip}: Found {len(result['emails'])} emails")
+        
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error discovering emails for IP {request.ip}: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Email discovery failed: {str(e)}"
         )
 
 
