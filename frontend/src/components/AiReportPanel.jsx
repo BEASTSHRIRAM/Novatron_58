@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Brain, ChevronDown, ChevronUp, Download, FileText, Sparkles, Loader } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Download, FileText, Sparkles, Loader, MessageCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import jsPDF from 'jspdf';
 import axios from 'axios';
+import ReportChat from './ReportChat';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -13,6 +14,7 @@ const AiReportPanel = ({ threatData }) => {
   const [report, setReport] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [reportError, setReportError] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const handleGenerateReport = async () => {
     setGenerating(true);
@@ -417,6 +419,17 @@ const AiReportPanel = ({ threatData }) => {
           </button>
 
           <button
+            onClick={() => setChatOpen(true)}
+            disabled={!report}
+            className="px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            title="Ask questions about this report"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Ask AI
+          </button>
+
+          <button
             data-testid="export-pdf-button"
             onClick={handleExportPDF}
             disabled={exporting || !report}
@@ -511,6 +524,13 @@ const AiReportPanel = ({ threatData }) => {
           </div>
         </div>
       )}
+
+      <ReportChat 
+        threatData={threatData}
+        report={report}
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+      />
     </div>
   );
 };

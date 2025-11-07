@@ -259,6 +259,106 @@ async def generate_report(request: GenerateReportRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
 
 
+class ChatRequest(BaseModel):
+    question: str
+    threat_data: Dict[str, Any]
+    report: str
+    conversation_history: Optional[List[Dict[str, str]]] = None
+
+
+@api_router.post("/chat-about-report")
+async def chat_about_report(request: ChatRequest):
+    """Chat interface to ask questions about the threat report"""
+    try:
+        import google.generativeai as genai
+        import os
+        
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        if not GEMINI_API_KEY:
+            # Fallback response if no AI available
+            return {
+                "answer": "I'm currently offline. Here's what I know about your question:\n\n"
+                         "🔍 **Analysis Context:**\n"
+                         f"• IP: {request.threat_data.get('ip', 'N/A')}\n"
+                         f"• Risk Score: {request.threat_data.get('risk', {}).get('score', 'N/A')}/100\n"
+                         f"• Threat Categories: {', '.join(request.threat_data.get('categories', []))}\n\n"
+                         "Please try again in a moment or check the full report above."
+            }
+        
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        
+        # Build conversation context
+        threat_summary = f"""
+## Current Threat Analysis
+
+**IP Address:** {request.threat_data['ip']}
+**Risk Score:** {request.threat_data['risk']['score']}/100
+**Risk Level:** {request.threat_data['risk']['label']}
+**Risk Rationale:** {', '.join(request.threat_data['risk'].get('rationale', []))}
+
+**Threat Categories:** {', '.join(request.threat_data.get('categories', []))}
+
+**Location:** {request.threat_data['context'].get('city', 'Unknown')}, {request.threat_data['context'].get('country', 'Unknown')}
+**Organization:** {request.threat_data['context'].get('org', 'Unknown')}
+**ASN:** {request.threat_data['context'].get('asn', 'Unknown')}
+
+**Related Indicators:**
+- Domains: {', '.join(request.threat_data['related'].get('domains', [])[:5]) if request.threat_data['related'].get('domains') else 'None'}
+- CVEs: {', '.join(request.threat_data['related'].get('cves', [])[:5]) if request.threat_data['related'].get('cves') else 'None'}
+- Threat Groups: {', '.join(request.threat_data['related'].get('threat_groups', [])[:3]) if request.threat_data['related'].get('threat_groups') else 'None'}
+
+**AI Report:**
+{request.report}
+"""
+        
+        # Build conversation history if provided
+        conversation_context = ""
+        if request.conversation_history and len(request.conversation_history) > 0:
+            conversation_context = "**Previous Questions & Answers:**\n"
+            for i, msg in enumerate(request.conversation_history[-4:]):  # Last 4 messages for context
+                if msg['type'] == 'user':
+                    conversation_context += f"\n**Q:** {msg['text']}\n"
+                else:
+                    conversation_context += f"**A:** {msg['text'][:500]}...\n"  # Truncate for context
+        
+        # Build the prompt
+        prompt = f"""You are a cybersecurity threat intelligence expert and assistant. Your role is to help security analysts 
+understand threat reports and IP analysis data. You explain technical concepts clearly, provide actionable insights, 
+and help users understand what they should do about the threats.
+
+{threat_summary}
+
+{conversation_context}
+
+**User's Question:** {request.question}
+
+Provide a helpful, clear answer that:
+1. Directly answers the user's question
+2. Uses plain language but maintains technical accuracy
+3. Provides context when helpful (e.g., explain what CVE means, not just list CVE numbers)
+4. Suggests actionable next steps if relevant
+5. Uses emoji indicators (🔴 for critical, 🟡 for medium, 🟢 for low) when appropriate
+
+Keep your response concise but thorough (2-4 paragraphs max). Use markdown formatting for readability."""
+
+        response = model.generate_content(prompt)
+        answer = response.text
+        
+        return {
+            "answer": answer,
+            "ip": request.threat_data['ip'],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in chat endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to process your question: {str(e)}"
+        )
+
+
 app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
