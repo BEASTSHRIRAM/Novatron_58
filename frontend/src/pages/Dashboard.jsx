@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import ThreatScoreGauge from '../components/ThreatScoreGauge';
 import ThreatCard from '../components/ThreatCard';
 import Map3D from '../components/Map3D';
@@ -7,7 +8,7 @@ import EvidenceTabs from '../components/EvidenceTabs';
 import AiReportPanel from '../components/AiReportPanel';
 import JsonDrawer from '../components/JsonDrawer';
 import DnsChecker from '../components/DnsChecker';
-import { Loader2, Shield, Search, AlertTriangle } from 'lucide-react';
+import { Loader2, Shield, Search, AlertTriangle, Home } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -40,6 +41,8 @@ const ABUSE_CATEGORIES = {
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || 'investigator');
   const [ipAddress, setIpAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [threatData, setThreatData] = useState(null);
@@ -111,17 +114,30 @@ const Dashboard = () => {
     <div className="min-h-screen p-6 lg:p-8" style={{ background: 'linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 100%)' }}>
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-8 animate-slide-up">
-        <div className="flex items-center gap-4 mb-2">
-          <Shield className="w-10 h-10 text-green-400" style={{ filter: 'drop-shadow(0 0 10px rgba(0,255,65,0.5))' }} />
-          <h1 className="text-5xl lg:text-6xl font-bold" style={{ 
-            fontFamily: 'Space Grotesk, sans-serif',
-            background: 'linear-gradient(135deg, #00ff41 0%, #a855f7 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            textShadow: '0 0 30px rgba(0,255,65,0.3)'
-          }}>
-            PredwinAI
-          </h1>
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-all"
+              title="Back to Home"
+            >
+              <Home className="w-6 h-6 text-gray-400 hover:text-green-400" />
+            </button>
+            <h1 className="text-5xl lg:text-6xl font-bold" style={{ 
+              fontFamily: 'Space Grotesk, sans-serif',
+              background: 'linear-gradient(135deg, #00ff41 0%, #a855f7 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              textShadow: '0 0 30px rgba(0,255,65,0.3)'
+            }}>
+              PredwinAI
+            </h1>
+          </div>
+          <div className="text-right">
+            <span className="inline-block px-3 py-1 rounded-full bg-gradient-to-r from-green-400/20 to-purple-500/20 border border-green-400/30 text-green-400 text-sm font-semibold">
+              {userRole === 'investigator' ? 'Investigator' : '🛡️ SOC Analyst'}
+            </span>
+          </div>
         </div>
         <p className="text-gray-400 text-lg" style={{ fontFamily: 'Inter, sans-serif' }}>
           Threat Intelligence Correlation Engine - Advanced IP Analysis & Attribution
