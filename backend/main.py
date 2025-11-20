@@ -271,11 +271,11 @@ class ChatRequest(BaseModel):
 async def chat_about_report(request: ChatRequest):
     """Chat interface to ask questions about the threat report"""
     try:
-        import google.generativeai as genai
+        from groq import Groq
         import os
         
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-        if not GEMINI_API_KEY:
+        GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+        if not GROQ_API_KEY:
             # Fallback response if no AI available
             return {
                 "answer": "I'm currently offline. Here's what I know about your question:\n\n"
@@ -286,8 +286,7 @@ async def chat_about_report(request: ChatRequest):
                          "Please try again in a moment or check the full report above."
             }
         
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        client = Groq(api_key=GROQ_API_KEY)
         
         # Build conversation context
         threat_summary = f"""
@@ -343,8 +342,14 @@ Provide a helpful, clear answer that:
 
 Keep your response concise but thorough (2-4 paragraphs max). Use markdown formatting for readability."""
 
-        response = model.generate_content(prompt)
-        answer = response.text
+        message = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1024
+        )
+        answer = message.choices[0].message.content
         
         return {
             "answer": answer,

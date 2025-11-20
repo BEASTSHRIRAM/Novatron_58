@@ -2,20 +2,19 @@ from typing import Dict, Any
 import logging
 import os
 import json
-import google.generativeai as genai
+from groq import Groq
 from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
-# Configure Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    logger.info("Gemini AI configured successfully")
+# Configure Groq API
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if GROQ_API_KEY:
+    client = Groq(api_key=GROQ_API_KEY)
+    logger.info("Groq AI configured successfully")
 else:
-    logger.warning("GEMINI_API_KEY not found, using fallback report generation")
-    model = None
+    logger.warning("GROQ_API_KEY not found, using fallback report generation")
+    client = None
 
 # In-memory cache for generated reports (IP -> (report, timestamp))
 _report_cache = {}
@@ -39,8 +38,8 @@ def generate_threat_report(
             # Remove expired cache entry
             del _report_cache[ip]
     
-    # If Gemini is not configured, use fallback template
-    if not model:
+    # If Groq is not configured, use fallback template
+    if not client:
         report = generate_fallback_report(ip, correlated, risk)
         _report_cache[ip] = (report, datetime.now(timezone.utc))
         return report
@@ -52,7 +51,7 @@ def generate_threat_report(
         related = correlated.get("related", {})
         evidence = correlated.get("evidence", {})
         
-        # Build comprehensive prompt for Gemini
+        # Build comprehensive prompt for Groq
         prompt = f"""You are a cybersecurity threat intelligence analyst. Analyze the following IP address and provide a detailed threat assessment report.
 
 IP ADDRESS: {ip}
@@ -107,9 +106,15 @@ Format the response in clean Markdown with proper headers (##, ###), bullet poin
 Avoid using asterisks for bullet points. Use proper Markdown headers only (## and ###).
 Keep text clean and professional without excessive special characters."""
 
-        # Generate AI report
-        response = model.generate_content(prompt)
-        ai_report = response.text
+        # Generate AI report using Groq
+        message = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=2048
+        )
+        ai_report = message.choices[0].message.content
         
         # Cache the report
         _report_cache[ip] = (ai_report, datetime.now(timezone.utc))
